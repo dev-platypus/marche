@@ -1,0 +1,23 @@
+<RCC>
+  <qresource prefix="marche">
+    <file>gear.png</file>
+    <file>arrow-circle-225.png</file>
+    <file>logo-old.svg</file>
+    <file>logo-new.svg</file>
+    <file>control.png</file>
+    <file>control-stop-square.png</file>
+    <file>door-open.png</file>
+    <file>drill.png</file>
+    <file>server.png</file>
+    <file>server-big.png</file>
+    <file>server-cast.png</file>
+    <file>ui-progress-bar.png</file>
+    <file>terminal.png</file>
+    <file>cross.png</file>
+    <file>folder-open.png</file>
+    <file>disk.png</file>
+    <file>blue-documents-text.png</file>
+    <file>broom.png</file>
+    <file>servers-network.png</file>
+  </qresource>
+</RCC>
