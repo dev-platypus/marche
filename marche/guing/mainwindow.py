@@ -107,7 +107,11 @@ class MainWindow(QMainWindow):
 
     def _determineOwnSubnet(self):
         # TODO move to platyutil
-        ip = socket.gethostbyname(socket.gethostname())
+        try:
+            ip = socket.gethostbyname(socket.gethostname())
+        except socket.gaierror:
+            # no hostname set, or weird hosts configuration
+            return None
         ifs = psutil.net_if_addrs()
 
         for _, addrs in ifs.items():
