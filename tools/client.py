@@ -33,18 +33,6 @@ class snzl_client(WebSocketClientProtocol):
     def onConnect(self, response):
         print("Connected to Server: {}".format(response.peer))
 
-    def onOpen(self):
-        self.i = 0
-
-        def send():
-            print('Sending: Hello, marche!')
-            self.i += 1
-            if self.i == 10:
-                self.sendClose()
-            self.sendMessage((u'Hello, marche!').encode('utf-8'))
-            self.factory.loop.call_later(1, send)
-        send()
-
     def onClose(self, wasClean, code, reason):
         print('closed!')
         self.factory.loop.stop()

@@ -36,9 +36,7 @@ class snzl_server(WebSocketServerProtocol):
     def onConnect(self, request):
         self.i = 0
         self.log.info('Client connecting: {}'.format(request.peer))
-
-    def onOpen(self):
-        pass
+        self.factory.clients.append(self)
 
     def onMessage(self, payload, isBinary):
         self.i += 1
@@ -48,10 +46,21 @@ class snzl_server(WebSocketServerProtocol):
 
     def onClose(self, wasClean, code, reason):
         self.log.info('Client disconnected, reason: {}'.format(reason))
+        self.factory.clients.remove(self)
+
+
+class snzl_server_factory(WebSocketServerFactory):
+    log = None
+
+    def __init__(self, url=None):
+        WebSocketServerFactory.__init__(
+            self, url)
+        self.clients = []
 
 
 class Interface(BaseInterface):
     iface_name = 'snzl'
+    needs_events = True
 
     def init(self):
         pass
@@ -61,6 +70,7 @@ class Interface(BaseInterface):
         host = self.config['host']
 
         snzl_server.log = self.log
+        snzl_server_factory.log = self.log
 
         thd = threading.Thread(target=self._thread, args=(host, port))
         thd.setDaemon(True)
@@ -70,13 +80,17 @@ class Interface(BaseInterface):
     def _thread(self, host, port):
         loop = asyncio.new_event_loop()
         asyncio.set_event_loop(loop)
-        factory = WebSocketServerFactory()
-        factory.protocol = snzl_server
+        self.factory = snzl_server_factory(url='ws://' + host)
+        self.factory.protocol = snzl_server
 
-        coro = loop.create_server(factory, host, port)
+        coro = loop.create_server(self.factory, host, port)
         server = loop.run_until_complete(coro)
         try:
             loop.run_forever()
         except:
             server.close()
             loop.close()
+
+    def emit_event(self, event):
+        for server in self.factory.clients:
+            server.sendMessage((u'Event: ' + str(event)).encode('utf-8'))
