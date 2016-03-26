@@ -1,3 +1,4 @@
 pamela
 psutil
 ipaddress
+autobahn[asyncio]

@@ -49,7 +49,7 @@ class Config(object):
     job_config = {}
     auth_config = {}
     iface_config = {}
-    interfaces = ['xmlrpc', 'udp']
+    interfaces = ['xmlrpc', 'udp', 'snzl']
     unauth_level = DISPLAY
 
     def __init__(self, confdir=None):
