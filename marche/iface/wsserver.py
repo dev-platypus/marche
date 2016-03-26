@@ -22,44 +22,48 @@
 #
 # *****************************************************************************
 
-
+import json
 import threading
-import asyncio
-from autobahn.asyncio.websocket import WebSocketServerProtocol, \
+
+from autobahn.asyncio.websocket import asyncio, WebSocketServerProtocol, \
     WebSocketServerFactory
+
 from marche.iface.base import Interface as BaseInterface
+from marche.protocol import ConnectedEvent, PROTO_VERSION
+from marche import __version__ as DAEMON_VERSION
 
 
-class snzl_server(WebSocketServerProtocol):
+class WSServer(WebSocketServerProtocol):
     log = None
 
     def onConnect(self, request):
-        self.i = 0
         self.log.info('Client connecting: {}'.format(request.peer))
         self.factory.clients.append(self)
 
     def onMessage(self, payload, isBinary):
-        self.i += 1
-        if self.i == 5:
-            self.sendMessage(u'Halftime!'.encode('utf-8'))
-        self.sendMessage(payload, isBinary)
+        if payload.decode('utf-8') == 'getServerInfo()':
+            connectedEvent = ConnectedEvent(PROTO_VERSION,
+                                            DAEMON_VERSION,
+                                            [])  # TODO: implement permissions
+            self.sendMessage(
+                json.dumps(connectedEvent.serialize()).encode('utf-8'),
+                isBinary=False)
 
     def onClose(self, wasClean, code, reason):
         self.log.info('Client disconnected, reason: {}'.format(reason))
         self.factory.clients.remove(self)
 
 
-class snzl_server_factory(WebSocketServerFactory):
+class WSServerFactory(WebSocketServerFactory):
     log = None
 
     def __init__(self, url=None):
-        WebSocketServerFactory.__init__(
-            self, url)
+        WebSocketServerFactory.__init__(self, url)
         self.clients = []
 
 
 class Interface(BaseInterface):
-    iface_name = 'snzl'
+    iface_name = 'wsserver'
     needs_events = True
 
     def init(self):
@@ -69,19 +73,19 @@ class Interface(BaseInterface):
         port = int(self.config['port'])
         host = self.config['host']
 
-        snzl_server.log = self.log
-        snzl_server_factory.log = self.log
+        WSServer.log = self.log
+        WSServerFactory.log = self.log
 
         thd = threading.Thread(target=self._thread, args=(host, port))
         thd.setDaemon(True)
         thd.start()
-        self.log.info('snzl listening on %s:%s' % (host, port))
+        self.log.info('WebSocket server listening on %s:%s' % (host, port))
 
     def _thread(self, host, port):
         loop = asyncio.new_event_loop()
         asyncio.set_event_loop(loop)
-        self.factory = snzl_server_factory(url='ws://' + host)
-        self.factory.protocol = snzl_server
+        self.factory = WSServerFactory(url='ws://' + host)
+        self.factory.protocol = WSServer
 
         coro = loop.create_server(self.factory, host, port)
         server = loop.run_until_complete(coro)
@@ -92,5 +96,6 @@ class Interface(BaseInterface):
             loop.close()
 
     def emit_event(self, event):
-        for server in self.factory.clients:
-            server.sendMessage((u'Event: ' + str(event)).encode('utf-8'))
+        for client in self.factory.clients:
+            client.sendMessage(json.dumps(event.serialize()).encode('utf-8'),
+                               isBinary=False)

@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+#!/usr/bin/env python
 #  -*- coding: utf-8 -*-
 # *****************************************************************************
 # Marche - A server control daemon
@@ -23,29 +23,28 @@
 #
 # *****************************************************************************
 
+import sys
+import time
+from os import path
+from pprint import pprint
 
-import asyncio
-from autobahn.asyncio.websocket import WebSocketClientProtocol, \
-    WebSocketClientFactory
+sys.path.insert(0, path.abspath(path.join(path.dirname(__file__), '..')))
 
-
-class snzl_client(WebSocketClientProtocol):
-    def onConnect(self, response):
-        print("Connected to Server: {}".format(response.peer))
-
-    def onClose(self, wasClean, code, reason):
-        print('closed!')
-        self.factory.loop.stop()
-
-    def onMessage(self, payload, isBinary):
-        print('Received: ' + payload.decode('utf8'))
+from marche.client import Client
 
 
-factory = WebSocketClientFactory('ws://127.0.0.1', 12132)
-factory.protocol = snzl_client
+def printEvent(event):
+    pprint(vars(event))
 
-loop = asyncio.get_event_loop()
-coro = loop.create_connection(factory, '127.0.0.1', 12132)
-loop.run_until_complete(coro)
-loop.run_forever()
-loop.stop()
+c = Client(str(sys.argv[1]) if len(sys.argv) > 1 else 'server.as-schulz.de')
+connectedEvent = c.getServerInfo()
+
+printEvent(connectedEvent)
+
+c.setEventHandler(printEvent)
+
+try:
+    while True:
+        time.sleep(1)
+except KeyboardInterrupt:
+    pass
