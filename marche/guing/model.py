@@ -55,7 +55,7 @@ class Client(object):
                         'abc' : {
                             'desc' : 'some desc',
                             'state' : 0,  # DEAD
-                            'extStatus' : 'ext status str',
+                            'ext_status' : 'ext status str',
                             'permissions' : ('control', 'display', 'admin')
                         }
                     }
@@ -112,8 +112,8 @@ class Host(QObject):
             self._serviceList = ev.services
             self.newServiceList.emit(self, ev.services)
         elif isinstance(ev, StatusEvent):
-            self.newState.emit(self, ev.service, ev.instance, ev.state, ev.extStatus)
-        elif isinstance(ev, Errorevent):
+            self.newState.emit(self, ev.service, ev.instance, ev.state, ev.ext_status)
+        elif isinstance(ev, ErrorEvent):
             self.errorOccured.emit(self, ev.service, ev.instance, ev.code, ev.string)
         elif isinstance(ev, ConffileEvent):
             self.conffilesReceived.emit(self, ev.service, ev.instance, ev.files)
