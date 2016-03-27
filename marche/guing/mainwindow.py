@@ -23,15 +23,15 @@
 
 import socket
 import ipaddress
-import sys
 
 import psutil
+
 from PyQt5.QtCore import Qt
 from PyQt5.QtGui import QIcon
 from PyQt5.QtWidgets import QMainWindow, QTreeWidgetItem, QInputDialog, \
     QWidget, QHeaderView
 
-import marche.guing.res
+import marche.guing.res  # noqa, pylint: disable=unused-import
 from marche.guing.util import loadUi
 from marche.guing.model import Model
 
@@ -99,8 +99,8 @@ class MainWindow(QMainWindow):
 
     def addSubnet(self):
         subnet, ok = QInputDialog.getText(self,
-            'Add subnet',
-            'Subnet (netid/prefix):')
+                                          'Add subnet',
+                                          'Subnet (netid/prefix):')
 
         if ok and subnet:
             self._model.addSubnet(subnet)
@@ -117,12 +117,12 @@ class MainWindow(QMainWindow):
         for _, addrs in ifs.items():
             for addr in addrs:
                 if addr.address == ip:
-                    return str(ipaddress.ip_network('%s/%s' % (ip,
-                        addr.netmask), False))
+                    return str(ipaddress.ip_network('%s/%s' %
+                                                    (ip, addr.netmask), False))
 
     def _addHostItem(self, subnet, host):
         subnetItem = self._ensureSubnetItemExistance(subnet)
-        hostItem = HostTreeItem(subnetItem, host)
+        HostTreeItem(subnetItem, host)
 
     def _ensureSubnetItemExistance(self, subnet):
         items = self.srvTree.findItems(subnet, Qt.MatchExactly)
@@ -140,7 +140,7 @@ class MainWindow(QMainWindow):
         self.statusBar().showMessage('Scan: %s' % host)
 
     def onSrvTreeItemChanged(self, newItem, oldItem):
-        del self._displayedHosts[:] # clear list
+        del self._displayedHosts[:]  # clear list
 
         if isinstance(newItem, HostTreeItem):
             self._displayedHosts.append(newItem.host)
@@ -156,9 +156,9 @@ class MainWindow(QMainWindow):
         for service, serviceInfo in serviceList.items():
             instances = serviceInfo['instances']
 
-            if len(instances) == 1 and '' in instances: # service without inst
+            if len(instances) == 1 and '' in instances:  # service without inst
                 serviceItem = JobTreeItem(self.jobTree, service, instances[''])
             else:
                 serviceItem = JobTreeItem(self.jobTree, service, None)
                 for instance, jobInfo in instances.items():
-                    instanceItem = JobTreeItem(serviceItem, instance, jobInfo)
+                    JobTreeItem(serviceItem, instance, jobInfo)

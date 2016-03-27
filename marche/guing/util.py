@@ -25,7 +25,6 @@
 
 import os
 import sys
-from os import path
 import binascii
 
 from PyQt5 import uic
@@ -33,12 +32,12 @@ from PyQt5.QtCore import QSettings
 from PyQt5.QtWidgets import QDialog
 
 
-uipath = path.dirname(__file__)
+uipath = os.path.dirname(__file__)
 KNOWN_EDITORS = ['gedit', 'kate', 'emacs', 'scite', 'geany', 'pluma']
 
 
 def loadUi(widget, uiname, subdir='ui'):
-    uic.loadUi(path.join(uipath, subdir, uiname), widget)
+    uic.loadUi(os.path.join(uipath, subdir, uiname), widget)
 
 
 # as copied from Python 3.3

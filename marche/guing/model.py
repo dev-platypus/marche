@@ -22,9 +22,9 @@
 # *****************************************************************************
 
 import socket
-import ipaddress
 import time
 import threading
+import ipaddress
 
 from PyQt5.QtCore import QThread, pyqtSignal, QObject
 
@@ -43,37 +43,34 @@ class Client(object):
     def setEventHandler(self, func):
         self._evHandler = func
 
-    def _dummyEvGenerator(*args):
+    def _dummyEvGenerator(self, *args):
         while True:
-            inst = args[0]
-
-            ev = ServiceListEvent()
-            ev.services = {
-                'taco-server-network' : {
-                    'type' : 'taco',
-                    'instances' : {
-                        'abc' : {
-                            'desc' : 'some desc',
-                            'state' : 0,  # DEAD
-                            'ext_status' : 'ext status str',
-                            'permissions' : ('control', 'display', 'admin')
+            ev = ServiceListEvent({
+                'taco-server-network': {
+                    'type': 'taco',
+                    'instances': {
+                        'abc': {
+                            'desc': 'some desc',
+                            'state': 0,  # DEAD
+                            'ext_status': 'ext status str',
+                            'permissions': ('control', 'display', 'admin')
                         }
                     }
                 }
-            }
+            })
 
-            if inst._evHandler:
-                inst._evHandler(ev)
+            if self._evHandler:
+                self._evHandler(ev)
             time.sleep(5)
 
 
 class Host(QObject):
-    newServiceList = pyqtSignal(object, dict) # service dict
-    newState = pyqtSignal(object, str, str, int, str) # self, service, instance, state, status
-    errorOccured = pyqtSignal(object, str, str, int, str) # self, service, instance, code, str
-    conffilesReceived = pyqtSignal(object, str, str, dict) # self, service, instance, files
-    logfilesReceived = pyqtSignal(object, str, str, dict) # self, service, instance, files
-    ctrlOutputReceived = pyqtSignal(object, str, str, list) # self, service, instance, lines
+    newServiceList = pyqtSignal(object, dict)  # service dict
+    newState = pyqtSignal(object, str, str, int, str)  # self, service, instance, state, status
+    errorOccured = pyqtSignal(object, str, str, int, str)  # self, service, instance, code, str
+    conffilesReceived = pyqtSignal(object, str, str, dict)  # self, service, instance, files
+    logfilesReceived = pyqtSignal(object, str, str, dict)  # self, service, instance, files
+    ctrlOutputReceived = pyqtSignal(object, str, str, list)  # self, service, instance, lines
 
     def __init__(self, ip, subnet, parent=None):
         QObject.__init__(self, parent)
@@ -103,8 +100,8 @@ class Host(QObject):
 
     @property
     def serviceList(self):
-        if not self._serviceList:
-            self._client.requestServiceList()
+        # if not self._serviceList:
+        #     self._client.requestServiceList()
         return self._serviceList
 
     def _eventHandler(self, ev):
@@ -219,7 +216,7 @@ class Model(QObject):
 
     def addSubnet(self, subnet):
         if subnet not in self._subnets:
-            net =  Subnet(subnet)
+            net = Subnet(subnet)
             net.scanningHost.connect(self.scanningHost)
             net.newHost.connect(self._subnetHostFound)
             net.startScan(not self._autoscan)

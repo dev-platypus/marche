@@ -91,7 +91,7 @@ class Interface(BaseInterface):
         server = loop.run_until_complete(coro)
         try:
             loop.run_forever()
-        except:
+        except Exception:
             server.close()
             loop.close()
 
