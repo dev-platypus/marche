@@ -22,6 +22,35 @@
 #
 # *****************************************************************************
 
+""".. index:: wsserver; interface
+
+WebSocket interface
+-------------------
+
+This interface allows controlling services via remote procedure calls over a
+protocol based on WebSocket, which is ultimately an upgraded HTTP connection.
+
+The WebSocket interface supports asynchronous message delivery, which means
+that clients need not poll for status updates continuously.
+
+.. describe:: [interfaces.wsserver]
+
+   The configuration settings that can be set within the
+   **interfaces.wsserver** section are:
+
+   .. describe:: port
+
+      **Default:** 12132
+
+      The port to listen for WebSocket clients.
+
+   .. describe:: host
+
+      **Default:** 0.0.0.0
+
+      The host to bind to.
+"""
+
 import json
 import threading
 
@@ -67,11 +96,11 @@ class Interface(BaseInterface):
     needs_events = True
 
     def init(self):
-        pass
+        self.server = None
 
     def run(self):
-        port = int(self.config['port'])
-        host = self.config['host']
+        port = int(self.config.get('port', 12132))
+        host = self.config.get('host', '0.0.0.0')
 
         WSServer.log = self.log
         WSServerFactory.log = self.log
@@ -79,6 +108,7 @@ class Interface(BaseInterface):
         thd = threading.Thread(target=self._thread, args=(host, port))
         thd.setDaemon(True)
         thd.start()
+
         self.log.info('WebSocket server listening on %s:%s' % (host, port))
 
     def _thread(self, host, port):
@@ -88,12 +118,17 @@ class Interface(BaseInterface):
         self.factory.protocol = WSServer
 
         coro = loop.create_server(self.factory, host, port)
-        server = loop.run_until_complete(coro)
+        self.server = loop.run_until_complete(coro)
+
         try:
             loop.run_forever()
-        except Exception:
-            server.close()
+        except Exception:  # pragma: no cover
+            self.server.close()
             loop.close()
+
+    def shutdown(self):
+        if self.server:
+            self.server.close()
 
     def emit_event(self, event):
         for client in self.factory.clients:

@@ -36,12 +36,11 @@ from marche.protocol import Event, ConnectedEvent
 class WSClient(WebSocketClientProtocol):
     def onConnect(self, response):
         self.factory.client = self
-        self.factory.unlockWhenConnected.release()
+        self.factory.connected.set()
         print("Connected to Server: {}".format(response.peer))
 
     def onClose(self, wasClean, code, reason):
         self.factory.client = None
-        print('closed!')
         self.factory.loop.stop()
 
     def onMessage(self, payload, isBinary):
@@ -57,41 +56,37 @@ class WSClientFactory(WebSocketClientFactory):
     def __init__(self, url):
         WebSocketClientFactory.__init__(self, url=url)
         self.client = None
-        self.unlockWhenConnected = None
+        self.connected = None
         self.unlockWhenReceivedServerInfo = None
         self.eventHandler = None
+        self.serverInfo = None
 
 
 class Client(object):
-    def __init__(self, ip):
+    def __init__(self, host, port):
         self._evHandler = None
-        self.unlockWhenConnected = threading.Lock()
-        self.thd = threading.Thread(target=self.start, args=(ip,))
+        self.connected = threading.Event()
+        self.thd = threading.Thread(target=self.start, args=(host, port))
         self.thd.setDaemon(True)
         self.thd.start()
-        # thd instantly acquires lock. By trying to acquire it here,
-        # we make sure to only return from __init__ when successfully
-        # connected. Any other case will throw an exception.
-        self.unlockWhenConnected.acquire()
+        self.connected.wait()
         if self.factory.client is None:
             raise RuntimeError('Connection refused')
-        self.unlockWhenConnected.release()
 
-    def start(self, ip):
-        self.unlockWhenConnected.acquire()
+    def start(self, host, port):
         try:
             loop = asyncio.new_event_loop()
             asyncio.set_event_loop(loop)
 
-            self.factory = WSClientFactory('ws://%s:%d' % (ip, 12132))
+            self.factory = WSClientFactory('ws://%s:%d' % (host, port))
             self.factory.protocol = WSClient
-            self.factory.unlockWhenConnected = self.unlockWhenConnected
+            self.factory.connected = self.connected
 
-            coro = loop.create_connection(self.factory, ip, 12132)
+            coro = loop.create_connection(self.factory, host, port)
             loop.run_until_complete(coro)
             loop.run_forever()
-        except Exception:
-            self.unlockWhenConnected.release()
+        finally:
+            self.connected.set()
 
     def getServerInfo(self):
         serverInfoLock = threading.Lock()
@@ -103,3 +98,6 @@ class Client(object):
 
     def setEventHandler(self, func):
         self.factory.eventHandler = func
+
+    def close(self):
+        self.factory.client.sendClose()
