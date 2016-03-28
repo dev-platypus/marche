@@ -83,7 +83,7 @@ class Client(object):
             loop = asyncio.new_event_loop()
             asyncio.set_event_loop(loop)
 
-            self.factory = WSClientFactory('ws://' + ip)
+            self.factory = WSClientFactory('ws://%s:%d' % (ip, 12132))
             self.factory.protocol = WSClient
             self.factory.unlockWhenConnected = self.unlockWhenConnected
 

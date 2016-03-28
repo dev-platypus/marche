@@ -84,7 +84,7 @@ class Interface(BaseInterface):
     def _thread(self, host, port):
         loop = asyncio.new_event_loop()
         asyncio.set_event_loop(loop)
-        self.factory = WSServerFactory(url='ws://' + host)
+        self.factory = WSServerFactory(url='ws://%s:%d' % (host, port))
         self.factory.protocol = WSServer
 
         coro = loop.create_server(self.factory, host, port)
