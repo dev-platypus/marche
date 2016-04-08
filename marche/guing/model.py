@@ -33,7 +33,7 @@ from marche.protocol import ServiceListEvent, StatusEvent, ErrorEvent, \
 
 
 class Client(object):
-    def __init__(self, ip):
+    def __init__(self, ip, port):
         self._evHandler = None
         self._th = threading.Thread(target=self._dummyEvGenerator, args=(self,))
 
@@ -42,6 +42,9 @@ class Client(object):
 
     def setEventHandler(self, func):
         self._evHandler = func
+
+    def requestServiceList(self):
+        pass
 
     def _dummyEvGenerator(self, *args):
         while True:
@@ -64,6 +67,7 @@ class Client(object):
             time.sleep(5)
 
 
+
 class Host(QObject):
     newServiceList = pyqtSignal(object, dict)  # service dict
     newState = pyqtSignal(object, str, str, int, str)  # self, service, instance, state, status
@@ -72,13 +76,13 @@ class Host(QObject):
     logfilesReceived = pyqtSignal(object, str, str, dict)  # self, service, instance, files
     ctrlOutputReceived = pyqtSignal(object, str, str, list)  # self, service, instance, lines
 
-    def __init__(self, ip, subnet, parent=None):
+    def __init__(self, ip, port, subnet, parent=None):
         QObject.__init__(self, parent)
         self._ip = ip
         self._subnet = subnet
         self._hostname, _, _ = socket.gethostbyaddr(ip)
         self._serviceList = {}
-        self._client = Client(ip)
+        self._client = Client(ip, port)
         self._client.setEventHandler(self._eventHandler)
         self._client.start()
 
@@ -100,8 +104,8 @@ class Host(QObject):
 
     @property
     def serviceList(self):
-        # if not self._serviceList:
-        #     self._client.requestServiceList()
+        if not self._serviceList:
+            self._client.requestServiceList()
         return self._serviceList
 
     def _eventHandler(self, ev):
@@ -148,7 +152,7 @@ class SubnetScanThread(QThread):
         for host in self._net.hosts():
             try:
                 self.scanningHost.emit(str(host))
-                socket.create_connection((str(host), '8124'), timeout=0.05)
+                socket.create_connection((str(host), '12132'), timeout=0.05)
                 self.hostFound.emit(str(host))
             except IOError:
                 pass
@@ -247,7 +251,7 @@ class Model(QObject):
         pass
 
     def _subnetHostFound(self, host):
-        hostObj = Host(host, self.sender())
+        hostObj = Host(host, 12132, self.sender())
 
         hostObj.newServiceList.connect(self.newServiceList)
         hostObj.newState.connect(self.newState)

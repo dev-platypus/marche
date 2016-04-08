@@ -35,19 +35,29 @@
         <enum>QAbstractItemView::NoSelection</enum>
        </property>
        <property name="columnCount">
-        <number>2</number>
+        <number>4</number>
        </property>
        <attribute name="headerVisible">
-        <bool>false</bool>
+        <bool>true</bool>
        </attribute>
        <column>
         <property name="text">
-         <string notr="true">1</string>
+         <string notr="true">Service</string>
         </property>
        </column>
        <column>
         <property name="text">
-         <string notr="true">2</string>
+         <string notr="true">Status</string>
+        </property>
+       </column>
+       <column>
+        <property name="text">
+         <string>Control</string>
+        </property>
+       </column>
+       <column>
+        <property name="text">
+         <string>Last Error</string>
         </property>
        </column>
       </widget>

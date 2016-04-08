@@ -34,41 +34,7 @@ from PyQt5.QtWidgets import QMainWindow, QTreeWidgetItem, QInputDialog, \
 import marche.guing.res  # noqa, pylint: disable=unused-import
 from marche.guing.util import loadUi
 from marche.guing.model import Model
-
-
-HOST_TREE_ITEM_TYPE = 1000 + 1
-JOB_TREE_ITEM_TYPE = 1000 + 1
-
-
-class HostTreeItem(QTreeWidgetItem):
-    def __init__(self, parent, host):
-        QTreeWidgetItem.__init__(self, parent, HOST_TREE_ITEM_TYPE)
-        self._host = host
-
-        self.setText(0, host.hostname)
-        self.setIcon(0, QIcon(':/marche/server.png'))
-
-    @property
-    def host(self):
-        return self._host
-
-
-class JobTreeItem(QTreeWidgetItem):
-    def __init__(self, parent, name, jobInfo):
-        QTreeWidgetItem.__init__(self, parent, HOST_TREE_ITEM_TYPE)
-        self._jobInfo = jobInfo
-        self._buttons = JobButtonsWidget()
-
-        self.setText(0, name)
-        self.setExpanded(True)
-        self.treeWidget().setItemWidget(self, 1, self._buttons)
-
-
-class JobButtonsWidget(QWidget):
-    def __init__(self, parent=None):
-        QWidget.__init__(self, parent)
-        loadUi(self, 'jobbuttons.ui', subdir='ui')
-        self.layout().addStretch(2)
+from marche.guing.treeitems import HostTreeItem, JobTreeItem
 
 
 class MainWindow(QMainWindow):
