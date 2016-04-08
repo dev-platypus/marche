@@ -56,6 +56,7 @@ class MainWindow(QMainWindow):
         self._model.newHost.connect(self._addHostItem)
         self._model.scanningHost.connect(self.onScanningHost)
         self._model.newServiceList.connect(self.updatejobTree)
+        self._model.newState.connect(self.updateStatus)
 
         self.actionAddSubnet.triggered.connect(self.addSubnet)
 
@@ -170,6 +171,20 @@ class MainWindow(QMainWindow):
     def updatejobTree(self, host, serviceList):
         if self._displayedHosts == [host]:
             self._displaySingleHost(host, serviceList)
+
+    def updateStatus(self, host, service, instance, state, status):
+        if self._displayedHosts == [host]:
+            serviceItem = self.jobTree.findItems(service, Qt.MatchExactly)[0]
+            instanceItem = serviceItem
+
+            if instance:
+                for i in range(serviceItem.childCount()):
+                    item = serviceItem.child(i)
+                    if item.text(0) == instance:
+                        instanceItem = item
+                        break
+
+            instanceItem.updateStatus(state, status)
 
     def _displaySingleHost(self, host, serviceList):
         self.jobTree.clear()

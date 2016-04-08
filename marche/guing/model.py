@@ -79,6 +79,9 @@ class Host(QObject):
             self._serviceList = ev.services
             self.newServiceList.emit(self, ev.services)
         elif isinstance(ev, StatusEvent):
+            if self._serviceList:
+                self._serviceList[ev.service][ev.instance]['state'] = ev.state
+                self._serviceList[ev.service][ev.instance]['ext_status'] = ev.ext_status
             self.newState.emit(self, ev.service, ev.instance, ev.state, ev.ext_status)
         elif isinstance(ev, ErrorEvent):
             self.errorOccured.emit(self, ev.service, ev.instance, ev.code, ev.string)
