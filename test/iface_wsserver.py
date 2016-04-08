@@ -33,6 +33,7 @@ from marche.config import Config
 from marche.client import Client
 from marche.protocol import ErrorEvent
 from marche.iface.wsserver import Interface
+from marche.protocol import PROTO_VERSION
 
 from test.utils import MockJobHandler, MockAuthHandler, LogHandler, wait
 
@@ -50,8 +51,6 @@ def wsserver_iface(request):
     iface = Interface(config, jobhandler, authhandler, logger)
     jobhandler.test_interface = iface
     iface.run()
-    # XXX: run() should do the waiting
-    wait(100, lambda: iface.server)
     request.addfinalizer(iface.shutdown)
     return iface
 
@@ -60,12 +59,12 @@ def wsserver_iface(request):
 def client(wsserver_iface):
     """Create a WebSocket client."""
     port = wsserver_iface.server.sockets[0].getsockname()[1]
-    return Client('127.0.0.1', port)
+    return Client('127.0.0.1', port, logger)
 
 
 def test_client_errors(wsserver_iface):
     port = wsserver_iface.server.sockets[0].getsockname()[1]
-    assert raises(RuntimeError, Client, '127.0.0.1', port + 1)
+    assert raises(RuntimeError, Client, '127.0.0.1', port + 1, logger)
 
 
 @mark.skipif(os.name == 'nt', reason='hangs on Windows')
@@ -74,10 +73,19 @@ def test_very_basic(client):
         events.append(event)
 
     events = []
-    client.getServerInfo()
     client.setEventHandler(event_handler)
+
+    serverinfo = client.getServerInfo()
+    assert serverinfo.proto_version == PROTO_VERSION
+
     event = ErrorEvent('svc', 'inst', 42, 'an error!')
     jobhandler.emit_event(event)
     wait(100, lambda: events)
     assert events[0] == event
+    del events[:]
+
+    client.requestServiceList()
+    wait(100, lambda: events)
+    assert 'svc' in events[0].services
+
     client.close()

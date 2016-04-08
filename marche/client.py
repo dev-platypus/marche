@@ -46,26 +46,29 @@ class WSClient(WebSocketClientProtocol):
     def onMessage(self, payload, isBinary):
         event = Event.unserialize(json.loads(payload.decode('utf-8')))
         if isinstance(event, ConnectedEvent):
-            self.factory.unlockWhenReceivedServerInfo()
             self.factory.serverInfo = event
+            self.factory.gotServerInfo.set()
         else:
             self.factory.eventHandler(event)
 
 
 class WSClientFactory(WebSocketClientFactory):
-    def __init__(self, url):
+    def __init__(self, url, connected, got_info):
         WebSocketClientFactory.__init__(self, url=url)
+        self.protocol = WSClient
+        self.connected = connected
+        self.gotServerInfo = got_info
         self.client = None
-        self.connected = None
-        self.unlockWhenReceivedServerInfo = None
         self.eventHandler = None
         self.serverInfo = None
 
 
 class Client(object):
-    def __init__(self, host, port):
+    def __init__(self, host, port, log):
         self._evHandler = None
+        self.log = log
         self.connected = threading.Event()
+        self.gotServerInfo = threading.Event()
         self.thd = threading.Thread(target=self.start, args=(host, port))
         self.thd.setDaemon(True)
         self.thd.start()
@@ -74,26 +77,24 @@ class Client(object):
             raise RuntimeError('Connection refused')
 
     def start(self, host, port):
+        addr = 'ws://%s:%d' % (host, port)
         try:
             loop = asyncio.new_event_loop()
             asyncio.set_event_loop(loop)
 
-            self.factory = WSClientFactory('ws://%s:%d' % (host, port))
-            self.factory.protocol = WSClient
-            self.factory.connected = self.connected
+            self.factory = WSClientFactory(addr, self.connected,
+                                           self.gotServerInfo)
 
             coro = loop.create_connection(self.factory, host, port)
             loop.run_until_complete(coro)
             loop.run_forever()
-        finally:
+        except Exception as err:
             self.connected.set()
+            self.log.exception('could not connect to %s', addr)
 
     def getServerInfo(self):
-        serverInfoLock = threading.Lock()
-        serverInfoLock.acquire()
-        self.factory.client.sendMessage('getServerInfo()'.encode('utf-8'))
-        self.factory.unlockWhenReceivedServerInfo = serverInfoLock.release
-        serverInfoLock.acquire()
+        if not self.gotServerInfo.wait(1):
+            raise RuntimeError('server info not received')
         return self.factory.serverInfo
 
     def setEventHandler(self, func):
@@ -101,3 +102,6 @@ class Client(object):
 
     def close(self):
         self.factory.client.sendClose()
+
+    def requestServiceList(self):
+        self.factory.client.sendMessage(json.dumps({'request': 'request_service_list'}).encode('utf-8'))
