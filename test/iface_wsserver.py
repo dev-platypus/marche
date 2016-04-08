@@ -87,5 +87,12 @@ def test_very_basic(client):
     client.requestServiceList()
     wait(100, lambda: events)
     assert 'svc' in events[0].services
+    del events[:]
+
+    client.requestServiceStatus('svc', 'inst')
+    wait(100, lambda: events)
+    assert events[0].instance == 'inst'
+    assert events[0].state == 0
+    del events[:]
 
     client.close()

@@ -103,5 +103,22 @@ class Client(object):
     def close(self):
         self.factory.client.sendClose()
 
+    def _sendRequest(self, request, **kwds):
+        kwds['request'] = request
+        self.factory.client.sendMessage(json.dumps(kwds).encode('utf-8'))
+
     def requestServiceList(self):
-        self.factory.client.sendMessage(json.dumps({'request': 'request_service_list'}).encode('utf-8'))
+        self._sendRequest('request_service_list')
+
+    def requestServiceStatus(self, service, instance):
+        self._sendRequest('request_service_status', service=service, instance=instance)
+
+    def startService(self, service, instance):
+        self._sendRequest('start_service', service=service, instance=instance)
+
+    def stopService(self, service, instance):
+        self._sendRequest('stop_service', service=service, instance=instance)
+
+    def restartService(self, service, instance):
+        self._sendRequest('restart_service', service=service, instance=instance)
+

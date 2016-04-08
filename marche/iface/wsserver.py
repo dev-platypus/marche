@@ -81,24 +81,48 @@ class WSServer(WebSocketServerProtocol):
     def onMessage(self, payload, isBinary):
         try:
             payload = json.loads(payload.decode('utf-8'))
-            request = payload['request']
-            if request == 'authenticate':
-                try:
-                    self.client_info = self.factory.authhandler.authenticate(request['user'], request['password'])
-                except AuthFailed:
-                    pass  # XXX
-            if request == 'request_service_list':
-                svclist = self.factory.jobhandler.request_service_list(self.client_info)
-                self.sendMessage(json.dumps(svclist.serialize()).encode('utf-8'))
-            else:
-                raise RuntimeError('no such request')
+            request = payload.pop('request')
         except Exception:
             self.log.warning('unrecognized message: %r', payload)
             return
+        try:
+            handler = getattr(self, 'do_' + request)
+        except AttributeError:
+            self.log.warning('invalid request: %r', request)
+            return
+        try:
+            handler(**payload)
+        except Exception:
+            self.log.exception('incomplete or invalid request: %r', payload)
 
     def onClose(self, wasClean, code, reason):
         self.log.info('Client disconnected, reason: {}'.format(reason))
         self.factory.clients.discard(self)
+
+    def do_authenticate(self, user, passwd):
+        try:
+            self.client_info = self.factory.authhandler.authenticate(
+                request['user'], request['password'])
+        except AuthFailed:
+            pass  # TODO
+
+    def do_request_service_list(self):
+        svclist = self.factory.jobhandler.request_service_list(self.client_info)
+        self.sendMessage(json.dumps(svclist.serialize()).encode('utf-8'))
+
+    def do_request_service_status(self, service, instance):
+        status = self.factory.jobhandler.request_service_status(
+            self.client_info, service, instance)
+        self.sendMessage(json.dumps(status.serialize()).encode('utf-8'))
+
+    def do_start_service(self, service, instance):
+        self.factory.jobhandler.start_service(self.client_info, service, instance)
+
+    def do_stop_service(self, service, instance):
+        self.factory.jobhandler.stop_service(self.client_info, service, instance)
+
+    def do_restart_service(self, service, instance):
+        self.factory.jobhandler.restart_service(self.client_info, service, instance)
 
 
 class WSServerFactory(WebSocketServerFactory):
