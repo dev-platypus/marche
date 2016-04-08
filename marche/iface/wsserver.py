@@ -51,17 +51,48 @@ that clients need not poll for status updates continuously.
       The host to bind to.
 """
 
-import json
 import threading
 
 from autobahn.asyncio.websocket import asyncio, WebSocketServerProtocol, \
     WebSocketServerFactory
 
 from marche.iface.base import Interface as BaseInterface
-from marche.protocol import ConnectedEvent, PROTO_VERSION
+from marche.protocol import Errors, Command, ServiceCommand, Commands, \
+    ConnectedEvent, ErrorEvent, PROTO_VERSION
 from marche.permission import ClientInfo, ADMIN
 from marche.auth import AuthFailed
+from marche.jobs import Busy, Fault, Unauthorized
 from marche import __version__ as DAEMON_VERSION
+
+
+COMMAND_HANDLERS = {}
+
+
+def command(cmdtype):
+    def deco(func):
+        def new_method(self, cmd):
+            try:
+                func(self, cmd)
+            except Exception as err:
+                if isinstance(cmd, ServiceCommand):
+                    svc, inst = cmd.service, cmd.instance
+                else:
+                    svc, inst = '', ''
+                desc = str(err)
+                if isinstance(err, Busy):
+                    code = Errors.BUSY
+                elif isinstance(err, Unauthorized):
+                    code = Errors.UNAUTH
+                elif isinstance(err, Fault):
+                    code = Errors.FAULT
+                else:
+                    code = Errors.EXCEPTION
+                    desc = 'Unexpected exception: %s' % err
+                self.sendMessage(ErrorEvent(svc, inst, code, desc).serialize())
+                self.log.exception('error in request: %r', cmd)
+        COMMAND_HANDLERS[cmdtype] = new_method
+        return new_method
+    return deco
 
 
 class WSServer(WebSocketServerProtocol):
@@ -76,53 +107,58 @@ class WSServer(WebSocketServerProtocol):
         connectedEvent = ConnectedEvent(PROTO_VERSION,
                                         DAEMON_VERSION,
                                         [])  # TODO: implement permissions
-        self.sendMessage(json.dumps(connectedEvent.serialize()).encode('utf-8'))
+        self.sendMessage(connectedEvent.serialize())
 
     def onMessage(self, payload, isBinary):
         try:
-            payload = json.loads(payload.decode('utf-8'))
-            request = payload.pop('request')
+            cmd = Command.unserialize(payload)
         except Exception:
-            self.log.warning('unrecognized message: %r', payload)
+            self.log.warning('invalid message payload, ignoring: %r', payload)
             return
         try:
-            handler = getattr(self, 'do_' + request)
-        except AttributeError:
-            self.log.warning('invalid request: %r', request)
+            handler = COMMAND_HANDLERS[cmd.type]
+        except KeyError:
+            self.log.warning('invalid command, ignoring: %r', cmd)
             return
-        try:
-            handler(**payload)
-        except Exception:
-            self.log.exception('incomplete or invalid request: %r', payload)
+        handler(self, cmd)
 
     def onClose(self, wasClean, code, reason):
         self.log.info('Client disconnected, reason: {}'.format(reason))
         self.factory.clients.discard(self)
 
-    def do_authenticate(self, user, passwd):
+    @command(Commands.AUTHENTICATE)
+    def authenticate(self, cmd):
         try:
             self.client_info = self.factory.authhandler.authenticate(
-                request['user'], request['password'])
+                cmd.user, cmd.passwd)
         except AuthFailed:
             pass  # TODO
 
-    def do_request_service_list(self):
+    @command(Commands.REQUEST_SERVICE_LIST)
+    def requestServiceList(self, cmd):
         svclist = self.factory.jobhandler.request_service_list(self.client_info)
-        self.sendMessage(json.dumps(svclist.serialize()).encode('utf-8'))
+        self.sendMessage(svclist.serialize())
 
-    def do_request_service_status(self, service, instance):
+    @command(Commands.REQUEST_SERVICE_STATUS)
+    def requestServiceStatus(self, cmd):
         status = self.factory.jobhandler.request_service_status(
-            self.client_info, service, instance)
-        self.sendMessage(json.dumps(status.serialize()).encode('utf-8'))
+            self.client_info, cmd.service, cmd.instance)
+        self.sendMessage(status.serialize())
 
-    def do_start_service(self, service, instance):
-        self.factory.jobhandler.start_service(self.client_info, service, instance)
+    @command(Commands.START_SERVICE)
+    def startService(self, cmd):
+        self.factory.jobhandler.start_service(self.client_info,
+                                              cmd.service, cmd.instance)
 
-    def do_stop_service(self, service, instance):
-        self.factory.jobhandler.stop_service(self.client_info, service, instance)
+    @command(Commands.STOP_SERVICE)
+    def stopService(self, cmd):
+        self.factory.jobhandler.stop_service(self.client_info,
+                                             cmd.service, cmd.instance)
 
-    def do_restart_service(self, service, instance):
-        self.factory.jobhandler.restart_service(self.client_info, service, instance)
+    @command(Commands.RESTART_SERVICE)
+    def restartService(self, cmd):
+        self.factory.jobhandler.restart_service(self.client_info,
+                                                cmd.service, cmd.instance)
 
 
 class WSServerFactory(WebSocketServerFactory):
@@ -152,7 +188,7 @@ class Interface(BaseInterface):
         thd = threading.Thread(target=self._thread, args=(host, port))
         thd.setDaemon(True)
         thd.start()
-        if not self.started.wait(1.0):
+        if not self.started.wait(1.0):  # pragma: no cover
             raise RuntimeError('failed to start server within 1 second')
 
         self.log.info('WebSocket server listening on %s:%s' % (host, port))
@@ -175,9 +211,12 @@ class Interface(BaseInterface):
 
     def shutdown(self):
         if self.server:
-            self.server.close()
+            try:
+                self.server.close()
+            except TypeError:
+                pass
 
     def emit_event(self, event):
-        serialized = json.dumps(event.serialize()).encode('utf-8')
+        serialized = event.serialize()
         for client in list(self.factory.clients):
             client.sendMessage(serialized)

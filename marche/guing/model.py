@@ -21,16 +21,15 @@
 #
 # *****************************************************************************
 
-import socket
 import time
-import threading
+import socket
 import ipaddress
 import logging
 
 from PyQt5.QtCore import QThread, pyqtSignal, QObject
 
 from marche.protocol import ServiceListEvent, StatusEvent, ErrorEvent, \
-    ConffileEvent, LogfileEvent, ControlOutputEvent
+    ConffileEvent, LogfileEvent, ControlOutputEvent, RequestServiceListCommand
 from marche.client import Client
 
 
@@ -48,9 +47,8 @@ class Host(QObject):
         self._subnet = subnet
         self._hostname, _, _ = socket.gethostbyaddr(ip)
         self._serviceList = {}
-        self._client = Client(ip, port, logging)
-        self._client.setEventHandler(self._eventHandler)
-        self._client.requestServiceList()
+        self._client = Client(ip, port, self._eventHandler, logging)
+        self._client.send(RequestServiceListCommand())
 
     @property
     def ip(self):
@@ -71,7 +69,7 @@ class Host(QObject):
     @property
     def serviceList(self):
         if not self._serviceList:
-            self._client.requestServiceList()
+            self._client.send(RequestServiceListCommand())
         return self._serviceList
 
     def _eventHandler(self, ev):

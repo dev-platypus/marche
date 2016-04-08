@@ -31,9 +31,9 @@ from pytest import raises, fixture, mark
 
 from marche.config import Config
 from marche.client import Client
-from marche.protocol import ErrorEvent
+from marche.protocol import ErrorEvent, RequestServiceListCommand, \
+    RequestServiceStatusCommand, PROTO_VERSION
 from marche.iface.wsserver import Interface
-from marche.protocol import PROTO_VERSION
 
 from test.utils import MockJobHandler, MockAuthHandler, LogHandler, wait
 
@@ -59,12 +59,13 @@ def wsserver_iface(request):
 def client(wsserver_iface):
     """Create a WebSocket client."""
     port = wsserver_iface.server.sockets[0].getsockname()[1]
-    return Client('127.0.0.1', port, logger)
+    return Client('127.0.0.1', port, lambda event: None, logger)
 
 
 def test_client_errors(wsserver_iface):
     port = wsserver_iface.server.sockets[0].getsockname()[1]
-    assert raises(RuntimeError, Client, '127.0.0.1', port + 1, logger)
+    assert raises(RuntimeError, Client, '127.0.0.1', port + 1,
+                  lambda event: None, logger)
 
 
 @mark.skipif(os.name == 'nt', reason='hangs on Windows')
@@ -84,12 +85,12 @@ def test_very_basic(client):
     assert events[0] == event
     del events[:]
 
-    client.requestServiceList()
+    client.send(RequestServiceListCommand())
     wait(100, lambda: events)
     assert 'svc' in events[0].services
     del events[:]
 
-    client.requestServiceStatus('svc', 'inst')
+    client.send(RequestServiceStatusCommand('svc', 'inst'))
     wait(100, lambda: events)
     assert events[0].instance == 'inst'
     assert events[0].state == 0

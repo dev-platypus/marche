@@ -24,7 +24,6 @@
 
 from __future__ import print_function
 
-import json
 import threading
 
 from autobahn.asyncio.websocket import asyncio, WebSocketClientProtocol, \
@@ -44,7 +43,7 @@ class WSClient(WebSocketClientProtocol):
         self.factory.loop.stop()
 
     def onMessage(self, payload, isBinary):
-        event = Event.unserialize(json.loads(payload.decode('utf-8')))
+        event = Event.unserialize(payload)
         if isinstance(event, ConnectedEvent):
             self.factory.serverInfo = event
             self.factory.gotServerInfo.set()
@@ -64,36 +63,35 @@ class WSClientFactory(WebSocketClientFactory):
 
 
 class Client(object):
-    def __init__(self, host, port, log):
-        self._evHandler = None
+    def __init__(self, host, port, event_handler, log):
         self.log = log
+        self.addr = 'ws://%s:%d' % (host, port)
         self.connected = threading.Event()
         self.gotServerInfo = threading.Event()
-        self.thd = threading.Thread(target=self.start, args=(host, port))
+        self.factory = WSClientFactory(self.addr, self.connected,
+                                       self.gotServerInfo)
+        self.factory.eventHandler = event_handler
+        self.thd = threading.Thread(target=self._thread, args=(host, port))
         self.thd.setDaemon(True)
         self.thd.start()
         self.connected.wait()
         if self.factory.client is None:
             raise RuntimeError('Connection refused')
 
-    def start(self, host, port):
-        addr = 'ws://%s:%d' % (host, port)
+    def _thread(self, host, port):
         try:
             loop = asyncio.new_event_loop()
             asyncio.set_event_loop(loop)
 
-            self.factory = WSClientFactory(addr, self.connected,
-                                           self.gotServerInfo)
-
             coro = loop.create_connection(self.factory, host, port)
             loop.run_until_complete(coro)
             loop.run_forever()
-        except Exception as err:
+        except Exception:
             self.connected.set()
-            self.log.exception('could not connect to %s', addr)
+            self.log.exception('could not connect to %s', self.addr)
 
     def getServerInfo(self):
-        if not self.gotServerInfo.wait(1):
+        if not self.gotServerInfo.wait(1):  # pragma: no cover
             raise RuntimeError('server info not received')
         return self.factory.serverInfo
 
@@ -103,22 +101,5 @@ class Client(object):
     def close(self):
         self.factory.client.sendClose()
 
-    def _sendRequest(self, request, **kwds):
-        kwds['request'] = request
-        self.factory.client.sendMessage(json.dumps(kwds).encode('utf-8'))
-
-    def requestServiceList(self):
-        self._sendRequest('request_service_list')
-
-    def requestServiceStatus(self, service, instance):
-        self._sendRequest('request_service_status', service=service, instance=instance)
-
-    def startService(self, service, instance):
-        self._sendRequest('start_service', service=service, instance=instance)
-
-    def stopService(self, service, instance):
-        self._sendRequest('stop_service', service=service, instance=instance)
-
-    def restartService(self, service, instance):
-        self._sendRequest('restart_service', service=service, instance=instance)
-
+    def send(self, cmd):
+        self.factory.client.sendMessage(cmd.serialize())
