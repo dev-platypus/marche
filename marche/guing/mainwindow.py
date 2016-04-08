@@ -29,8 +29,9 @@ import psutil
 from PyQt5.QtCore import Qt
 from PyQt5.QtGui import QIcon
 from PyQt5.QtWidgets import QMainWindow, QTreeWidgetItem, QInputDialog, \
-    QWidget, QHeaderView
+    QWidget, QHeaderView, QMessageBox
 
+from marche import get_version
 import marche.guing.res  # noqa, pylint: disable=unused-import
 from marche.guing.util import loadUi
 from marche.guing.model import Model
@@ -102,6 +103,60 @@ class MainWindow(QMainWindow):
 
         return item
 
+    def onAbout(self):
+        QMessageBox.about(
+            self, 'About Marche GUI',
+            '''
+            <h2>About Marche GUI</h2>
+            <p>
+                Marche GUI is a graphical interface for the Marche process
+                control system.
+            </p>
+            <h3>Authors:</h3>
+            <ul>
+                <li>
+                    Copyright (C) 2015-2016
+                    <a href="mailto:g.brandl@fz-juelich.de">Georg Brandl</a>
+                </li>
+                <li>
+                    Copyright (C) 2015
+                    <a href="mailto:alexander.lenz@frm2.tum.de">Alexander
+                    Lenz (FRM-II)</a>
+                </li>
+            </ul>
+            <h4 style="margin-top:20px;">Copyright (C) 2015-2016 Dev Platypus</h4>
+            <table>
+                <tr>
+                    <td>
+                        <img src=":/marche/devplatypus_logo.png" />
+                    </td>
+                    <td style="vertical-align:middle">
+                        <ul>
+                            <li>Copyright (C) 2015-2016
+                                <a href="mailto:alenz@dev-platypus.org">Alexander
+                                Lenz</a>
+                            </li>
+                            <li>Copyright (C) 2015-2016
+                                <a href="mailto:aschulz@dev-platypus.org">Andreas
+                                Schulz</a>
+                            </li>
+                        </ul>
+                    </td>
+                </tr>
+            </table>
+            <p>
+              Marche is published under the
+              <a href="http://www.gnu.org/licenses/gpl.html">GPL
+                (GNU General Public License)</a>
+            </p>
+            <p style="font-weight: bold">
+              Version: %s
+            </p>
+            ''' % get_version())
+
+    def onAboutQt(self):
+        QMessageBox.aboutQt(self, 'About Qt')
+
     def onScanningHost(self, host):
         self.statusBar().showMessage('Scan: %s' % host)
 
@@ -120,11 +175,10 @@ class MainWindow(QMainWindow):
         self.jobTree.clear()
 
         for service, serviceInfo in serviceList.items():
-            instances = serviceInfo['instances']
 
-            if len(instances) == 1 and '' in instances:  # service without inst
-                serviceItem = JobTreeItem(self.jobTree, service, instances[''])
+            if len(serviceInfo) == 1 and '' in serviceInfo:  # service without inst
+                serviceItem = JobTreeItem(self.jobTree, service, serviceInfo[''])
             else:
                 serviceItem = JobTreeItem(self.jobTree, service, None)
-                for instance, jobInfo in instances.items():
+                for instance, jobInfo in serviceInfo.items():
                     JobTreeItem(serviceItem, instance, jobInfo)
