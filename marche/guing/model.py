@@ -25,47 +25,13 @@ import socket
 import time
 import threading
 import ipaddress
+import logging
 
 from PyQt5.QtCore import QThread, pyqtSignal, QObject
 
 from marche.protocol import ServiceListEvent, StatusEvent, ErrorEvent, \
     ConffileEvent, LogfileEvent, ControlOutputEvent
-
-
-class Client(object):
-    def __init__(self, ip, port):
-        self._evHandler = None
-        self._th = threading.Thread(target=self._dummyEvGenerator, args=(self,))
-
-    def start(self):
-        self._th.start()
-
-    def setEventHandler(self, func):
-        self._evHandler = func
-
-    def requestServiceList(self):
-        pass
-
-    def _dummyEvGenerator(self, *args):
-        while True:
-            ev = ServiceListEvent({
-                'taco-server-network': {
-                    'type': 'taco',
-                    'instances': {
-                        'abc': {
-                            'desc': 'some desc',
-                            'state': 0,  # DEAD
-                            'ext_status': 'ext status str',
-                            'permissions': ('control', 'display', 'admin')
-                        }
-                    }
-                }
-            })
-
-            if self._evHandler:
-                self._evHandler(ev)
-            time.sleep(5)
-
+from marche.client import Client
 
 
 class Host(QObject):
@@ -82,9 +48,9 @@ class Host(QObject):
         self._subnet = subnet
         self._hostname, _, _ = socket.gethostbyaddr(ip)
         self._serviceList = {}
-        self._client = Client(ip, port)
+        self._client = Client(ip, port, logging)
         self._client.setEventHandler(self._eventHandler)
-        self._client.start()
+        self._client.requestServiceList()
 
     @property
     def ip(self):
@@ -152,7 +118,8 @@ class SubnetScanThread(QThread):
         for host in self._net.hosts():
             try:
                 self.scanningHost.emit(str(host))
-                socket.create_connection((str(host), '12132'), timeout=0.05)
+                s = socket.create_connection((str(host), '12132'), timeout=0.05)
+                s.close()
                 self.hostFound.emit(str(host))
             except IOError:
                 pass
