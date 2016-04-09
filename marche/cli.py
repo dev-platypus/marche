@@ -29,10 +29,14 @@ from __future__ import print_function
 import cmd
 import sys
 import ctypes
+import getpass
 import logging
+import readline
 
-from marche.client import Client
+from marche.six.moves import input
+
 from marche import protocol as proto
+from marche.client import Client
 from marche.jobs import STATE_STR, DEAD, RUNNING, WARNING, STARTING, \
     STOPPING, INITIALIZING, NOT_RUNNING, NOT_AVAILABLE
 from marche.colors import colorize
@@ -88,6 +92,8 @@ class Console(cmd.Cmd):
                     print('%-25s %s' % (self._svcname(svc, inst),
                                         self._fmt_state(info['state'])))
             print('-' * 40)
+            if not event.services:
+                print('You might need to authenticate to see services.')
         elif isinstance(event, proto.StatusEvent):
             print('\r--> %s is now %s' %
                   (self._svcname(event.service, event.instance),
@@ -96,6 +102,14 @@ class Console(cmd.Cmd):
             print('\rStart/stop output of %s:' % self._svcname(event.service,
                                                                event.instance))
             print(''.join(event.content), end='')
+        elif isinstance(event, proto.AuthEvent):
+            if event.success:
+                print(colorize('green', '\rAuthentication succeeded.'))
+                self.client.send(proto.RequestServiceListCommand())
+            else:
+                print(colorize('red', '\rAuthentication failed.'))
+        else:
+            print('\r')
         if librl:
             # Display a new prompt right now (unfortunately not exported by
             # the readline module.)
@@ -108,12 +122,18 @@ class Console(cmd.Cmd):
         try:
             return cmd.Cmd.onecmd(self, line)
         except Exception as err:
-            print('\rError: %s' % err)
+            print('Error: %s' % err)
 
     def do_EOF(self, arg):
         self.client.close()
         return True
     do_q = do_quit = do_EOF
+
+    def do_auth(self, arg):
+        if not arg:
+            print('Usage: auth username')
+        passwd = getpass.getpass()
+        self.client.send(proto.AuthenticateCommand(arg, passwd))
 
     def do_reload(self, arg):
         self.client.send(proto.TriggerReloadCommand())
