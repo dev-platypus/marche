@@ -95,9 +95,6 @@ class Client(object):
             raise RuntimeError('server info not received')
         return self.factory.serverInfo
 
-    def setEventHandler(self, func):
-        self.factory.eventHandler = func
-
     def close(self):
         if self.factory.client is None:
             return

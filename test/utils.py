@@ -144,6 +144,8 @@ class MockJobHandler(object):
         return 'desc'
 
     def request_service_status(self, client, service, instance):
+        if service != 'svc':
+            raise Fault('no such service')
         return StatusEvent(service=service, instance=instance,
                            state=DEAD, ext_status='ext_status')
 

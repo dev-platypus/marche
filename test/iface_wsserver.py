@@ -27,12 +27,11 @@
 import os
 import logging
 
-from pytest import raises, fixture, mark
+from pytest import raises, yield_fixture, mark
 
+from marche import protocol as proto
 from marche.config import Config
 from marche.client import Client
-from marche.protocol import ErrorEvent, RequestServiceListCommand, \
-    RequestServiceStatusCommand, PROTO_VERSION
 from marche.iface.wsserver import Interface
 
 from test.utils import MockJobHandler, MockAuthHandler, LogHandler, wait
@@ -43,7 +42,7 @@ logger = logging.getLogger('testwsserver')
 logger.addHandler(LogHandler())
 
 
-@fixture(scope='module')
+@yield_fixture(scope='module')
 def wsserver_iface(request):
     """Create a Marche WebSocket server interface."""
     config = Config()
@@ -51,15 +50,34 @@ def wsserver_iface(request):
     iface = Interface(config, jobhandler, authhandler, logger)
     jobhandler.test_interface = iface
     iface.run()
-    request.addfinalizer(iface.shutdown)
-    return iface
+    yield iface
+    iface.shutdown()
 
 
-@fixture()
+class Events(object):
+    def __init__(self):
+        self.events = []
+
+    def event_handler(self, event):
+        self.events.append(event)
+
+    def expect_event(self, cls):
+        n = len(self.events)
+        wait(100, lambda: len(self.events) > n)
+        event = self.events[-1]
+        assert isinstance(event, cls)
+        return event
+
+
+@yield_fixture()
 def client(wsserver_iface):
     """Create a WebSocket client."""
     port = wsserver_iface.server.sockets[0].getsockname()[1]
-    return Client('127.0.0.1', port, lambda event: None, logger)
+    events = Events()
+    client = Client('127.0.0.1', port, events.event_handler, logger)
+    client.events = events
+    yield client
+    client.close()
 
 
 def test_client_errors(wsserver_iface):
@@ -69,31 +87,84 @@ def test_client_errors(wsserver_iface):
 
 
 @mark.skipif(os.name == 'nt', reason='hangs on Windows')
-def test_very_basic(client):
-    def event_handler(event):
-        events.append(event)
-
-    events = []
-    client.setEventHandler(event_handler)
-
+def test_basic(client):
     serverinfo = client.getServerInfo()
-    assert serverinfo.proto_version == PROTO_VERSION
+    assert serverinfo.proto_version == proto.PROTO_VERSION
 
-    event = ErrorEvent('svc', 'inst', 42, 'an error!')
+    event = proto.ErrorEvent('svc', 'inst', 42, 'an error!')
     jobhandler.emit_event(event)
-    wait(100, lambda: events)
-    assert events[0] == event
-    del events[:]
+    evt = client.events.expect_event(proto.ErrorEvent)
+    assert evt == event
 
-    client.send(RequestServiceListCommand())
-    wait(100, lambda: events)
-    assert 'svc' in events[0].services
-    del events[:]
+    client.send(proto.AuthenticateCommand('wrong', 'pass'))
+    evt = client.events.expect_event(proto.AuthEvent)
+    assert not evt.success
 
-    client.send(RequestServiceStatusCommand('svc', 'inst'))
-    wait(100, lambda: events)
-    assert events[0].instance == 'inst'
-    assert events[0].state == 0
-    del events[:]
+    client.send(proto.AuthenticateCommand('test', 'test'))
+    evt = client.events.expect_event(proto.AuthEvent)
+    assert evt.success
+
+    client.send(proto.TriggerReloadCommand())
+    wait(100, lambda: jobhandler.test_reloaded)
+
+    # server should ignore invalid requests
+    client.factory.client.sendMessage(b'some garbage')
+    client.factory.client.sendMessage(b'{"type": "garbage"}')
 
     client.close()
+
+    wait(100, lambda: not client.factory.client)
+    client.close()  # should be a no-op
+    assert raises(RuntimeError, client.send, proto.RequestServiceListCommand())
+
+
+def test_requests(client):
+    client.send(proto.RequestServiceListCommand())
+    evt = client.events.expect_event(proto.ServiceListEvent)
+    assert 'svc' in evt.services
+
+    jobhandler.test_svc_list_error = True
+    client.send(proto.RequestServiceListCommand())
+    evt = client.events.expect_event(proto.ErrorEvent)
+    assert evt.service == evt.instance == ''
+    assert 'uh oh' in evt.desc
+    jobhandler.test_svc_list_error = False
+
+    client.send(proto.RequestServiceStatusCommand('non', 'existing'))
+    evt = client.events.expect_event(proto.ErrorEvent)
+    assert evt.code == proto.Errors.FAULT
+    assert 'no such service' in evt.desc
+
+    client.send(proto.RequestServiceStatusCommand('svc', 'inst'))
+    evt = client.events.expect_event(proto.StatusEvent)
+    assert evt.instance == 'inst'
+    assert evt.state == 0
+
+    client.send(proto.RequestControlOutputCommand('svc', 'inst'))
+    evt = client.events.expect_event(proto.ControlOutputEvent)
+    assert evt.content == ['line1', 'line2']
+
+    client.send(proto.RequestLogFilesCommand('svc', 'inst'))
+    evt = client.events.expect_event(proto.LogfileEvent)
+    assert evt.files['file1'] == 'line1\nline2\n'
+
+    client.send(proto.RequestConfFilesCommand('svc', 'inst'))
+    evt = client.events.expect_event(proto.ConffileEvent)
+    assert evt.files['file1'] == 'line1\nline2\n'
+
+
+def test_actions(client):
+    client.send(proto.StartCommand('svc', 'inst'))
+    client.send(proto.StopCommand('svc', 'inst'))
+    evt = client.events.expect_event(proto.ErrorEvent)
+    assert evt.code == proto.Errors.BUSY
+
+    client.send(proto.RestartCommand('svc', 'inst'))
+    evt = client.events.expect_event(proto.ErrorEvent)
+    assert evt.code == proto.Errors.FAULT
+    assert 'cannot do this' in evt.desc
+
+    client.send(proto.SendConfFileCommand('svc', 'inst', 'fn', ''))
+    evt = client.events.expect_event(proto.ErrorEvent)
+    assert evt.code == proto.Errors.EXCEPTION
+    assert 'no conf files' in evt.desc

@@ -58,7 +58,7 @@ from autobahn.asyncio.websocket import asyncio, WebSocketServerProtocol, \
 
 from marche.iface.base import Interface as BaseInterface
 from marche.protocol import Errors, Command, ServiceCommand, Commands, \
-    ConnectedEvent, ErrorEvent, PROTO_VERSION
+    ConnectedEvent, ErrorEvent, AuthEvent, PROTO_VERSION
 from marche.permission import ClientInfo, ADMIN
 from marche.auth import AuthFailed
 from marche.jobs import Busy, Fault, Unauthorized
@@ -117,7 +117,7 @@ class WSServer(WebSocketServerProtocol):
             return
         try:
             handler = COMMAND_HANDLERS[cmd.type]
-        except KeyError:
+        except Exception:
             self.log.warning('invalid command, ignoring: %r', cmd)
             return
         handler(self, cmd)
@@ -132,7 +132,9 @@ class WSServer(WebSocketServerProtocol):
             self.client_info = self.factory.authhandler.authenticate(
                 cmd.user, cmd.passwd)
         except AuthFailed:
-            pass  # TODO
+            self.sendMessage(AuthEvent(False).serialize())
+        else:
+            self.sendMessage(AuthEvent(True).serialize())
 
     @command(Commands.TRIGGER_RELOAD)
     def triggerReload(self, cmd):
@@ -242,7 +244,8 @@ class Interface(BaseInterface):
         if self.server:
             try:
                 self.server.close()
-            except TypeError:
+            except TypeError:  # pragma: no cover
+                # Trollius sometimes raises this...
                 pass
 
     def emit_event(self, event):
