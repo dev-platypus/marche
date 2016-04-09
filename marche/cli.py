@@ -31,19 +31,17 @@ import sys
 import ctypes
 import getpass
 import logging
-import readline
-
-from marche.six.moves import input
 
 from marche import protocol as proto
 from marche.client import Client
 from marche.jobs import STATE_STR, DEAD, RUNNING, WARNING, STARTING, \
     STOPPING, INITIALIZING, NOT_RUNNING, NOT_AVAILABLE
 from marche.colors import colorize
+from marche.utils import normalize_addr
 
-try:
+try:  # pragma: no cover
     librl = ctypes.cdll[ctypes.util.find_library('readline')]
-except Exception:
+except Exception:  # pragma: no cover
     librl = None
 
 
@@ -60,11 +58,12 @@ class Console(cmd.Cmd):
         NOT_AVAILABLE: 'darkgray',
     }
 
-    def __init__(self):
-        cmd.Cmd.__init__(self)
-        host = str(sys.argv[1]) if len(sys.argv) > 1 else '127.0.0.1'
-        self.client = Client(host, 12132, self.printEvent, logging)
+    def __init__(self, args, stdout=None):
+        cmd.Cmd.__init__(self, stdout=stdout)
+        host, port = normalize_addr(args[0] if args else '127.0.0.1', 12132)
+        self.client = Client(host, int(port), self.printEvent, logging)
         connectedEvent = self.client.getServerInfo()
+        self.write = self.stdout.write
         self.printEvent(connectedEvent)
         self.client.send(proto.RequestServiceListCommand())
 
@@ -79,40 +78,44 @@ class Console(cmd.Cmd):
 
     def printEvent(self, event):
         if isinstance(event, proto.ConnectedEvent):
-            print('\rConnected: daemon version %s, protocol version %s' %
-                  (event.daemon_version, event.proto_version))
+            self.write('\r%s: daemon version %s, protocol version %s\n' %
+                       (colorize('bold', 'Connected'),
+                        event.daemon_version, event.proto_version))
         elif isinstance(event, proto.ErrorEvent):
-            print('\r--> Error: %s' % event.desc)
+            self.write('\r--> %s: %s\n' %
+                       (colorize('red', 'Error'), event.desc))
         elif isinstance(event, proto.ServiceListEvent):
-            print('\rList of services:')
-            print('%-25s Current state' % 'Service')
-            print('-' * 40)
+            self.write('\rList of services:\n')
+            self.write('%-25s Current state\n' % 'Service')
+            self.write('-' * 40 + '\n')
             for svc, info in event.services.items():
                 for inst, info in info['instances'].items():
-                    print('%-25s %s' % (self._svcname(svc, inst),
-                                        self._fmt_state(info['state'])))
-            print('-' * 40)
-            if not event.services:
-                print('You might need to authenticate to see services.')
+                    self.write('%-25s %s\n' % (self._svcname(svc, inst),
+                                               self._fmt_state(info['state'])))
+            self.write('-' * 40 + '\n')
+            if not event.services:  # pragma: no cover
+                self.write('You might need to authenticate to see services.\n')
         elif isinstance(event, proto.StatusEvent):
-            print('\r--> %s is now %s' %
-                  (self._svcname(event.service, event.instance),
-                   self._fmt_state(event.state)))
+            self.write('\r--> %s is now %s\n' %
+                       (self._svcname(event.service, event.instance),
+                        self._fmt_state(event.state)))
         elif isinstance(event, proto.ControlOutputEvent):
-            print('\rStart/stop output of %s:' % self._svcname(event.service,
-                                                               event.instance))
-            print(''.join(event.content), end='')
+            self.write('\rStart/stop output of %s:\n' %
+                       self._svcname(event.service, event.instance))
+            self.write(''.join(event.content))
         elif isinstance(event, proto.AuthEvent):
             if event.success:
-                print(colorize('green', '\rAuthentication succeeded.'))
+                self.write('\r%s\n' % colorize('green',
+                                               'Authentication succeeded.'))
                 self.client.send(proto.RequestServiceListCommand())
             else:
-                print(colorize('red', '\rAuthentication failed.'))
+                self.write('\r%s\n' % colorize('red',
+                                               'Authentication failed.'))
         elif isinstance(event, proto.FoundHostEvent):
-            print('\rFound host: %s' % colorize('bold', event.host))
-        else:
-            print('\r')
-        if librl:
+            self.write('\rFound host: %s\n' % colorize('bold', event.host))
+        else:  # pragma: no cover
+            self.write('\r\n')
+        if librl:  # pragma: no cover
             # Display a new prompt right now (unfortunately not exported by
             # the readline module.)
             librl.rl_forced_update_display()
@@ -124,7 +127,7 @@ class Console(cmd.Cmd):
         try:
             return cmd.Cmd.onecmd(self, line)
         except Exception as err:
-            print('Error: %s' % err)
+            self.write('%s: %s\n' % (colorize('red', 'Error'), err))
 
     def do_EOF(self, arg):
         self.client.close()
@@ -133,9 +136,15 @@ class Console(cmd.Cmd):
 
     def do_auth(self, arg):
         if not arg:
-            print('Usage: auth username')
-        passwd = getpass.getpass()
-        self.client.send(proto.AuthenticateCommand(arg, passwd))
+            self.write('Usage: auth <username> [<password>]\n')
+            return
+        args = arg.split()
+        user = args[0]
+        if len(args) == 1:  # pragma: no cover
+            passwd = getpass.getpass()
+        else:
+            passwd = args[1]
+        self.client.send(proto.AuthenticateCommand(user, passwd))
 
     def do_reload(self, arg):
         self.client.send(proto.TriggerReloadCommand())
@@ -165,8 +174,8 @@ class Console(cmd.Cmd):
         self.client.send(proto.RestartCommand(*self._svcinst(arg)))
 
 
-def main():
+def main():  # pragma: no cover
     try:
-        Console().cmdloop()
+        Console(sys.argv[1:]).cmdloop()
     except KeyboardInterrupt:
         pass

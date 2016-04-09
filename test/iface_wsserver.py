@@ -111,6 +111,18 @@ def test_basic(client):
     client.factory.client.sendMessage(b'some garbage')
     client.factory.client.sendMessage(b'{"type": "garbage"}')
 
+    event = proto.ServiceListEvent(services={'svc': {
+        'jobtype': '', 'permissions': [], 'instances': {'inst': {}}
+    }})
+    jobhandler.emit_event(event)
+    evt = client.events.expect_event(proto.ServiceListEvent)
+    assert evt.services == {}
+
+    event = proto.StatusEvent('svc', 'inst', 0, '')
+    jobhandler.emit_event(event)
+    evt = client.events.expect_event(proto.StatusEvent)
+    assert evt == event
+
     client.close()
 
     wait(100, lambda: not client.factory.client)
@@ -154,10 +166,15 @@ def test_requests(client):
 
 
 def test_actions(client):
-    client.send(proto.StartCommand('svc', 'inst'))
+    client.send(proto.StartCommand('svc', 'inst'))  # passes
+
     client.send(proto.StopCommand('svc', 'inst'))
     evt = client.events.expect_event(proto.ErrorEvent)
     assert evt.code == proto.Errors.BUSY
+
+    client.send(proto.StopCommand('svc', ''))
+    evt = client.events.expect_event(proto.ErrorEvent)
+    assert evt.code == proto.Errors.UNAUTH
 
     client.send(proto.RestartCommand('svc', 'inst'))
     evt = client.events.expect_event(proto.ErrorEvent)
