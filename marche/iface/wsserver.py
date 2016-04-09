@@ -134,9 +134,14 @@ class WSServer(WebSocketServerProtocol):
         except AuthFailed:
             pass  # TODO
 
+    @command(Commands.TRIGGER_RELOAD)
+    def triggerReload(self, cmd):
+        self.factory.jobhandler.trigger_reload()
+
     @command(Commands.REQUEST_SERVICE_LIST)
     def requestServiceList(self, cmd):
-        svclist = self.factory.jobhandler.request_service_list(self.client_info)
+        svclist = self.factory.jobhandler.request_service_list(
+            self.client_info)
         self.sendMessage(svclist.serialize())
 
     @command(Commands.REQUEST_SERVICE_STATUS)
@@ -144,6 +149,24 @@ class WSServer(WebSocketServerProtocol):
         status = self.factory.jobhandler.request_service_status(
             self.client_info, cmd.service, cmd.instance)
         self.sendMessage(status.serialize())
+
+    @command(Commands.REQUEST_CONTROL_OUTPUT)
+    def requestControlOutput(self, cmd):
+        output = self.factory.jobhandler.request_control_output(
+            self.client_info, cmd.service, cmd.instance)
+        self.sendMessage(output.serialize())
+
+    @command(Commands.REQUEST_LOG_FILES)
+    def requestLogFiles(self, cmd):
+        logfiles = self.factory.jobhandler.request_logfiles(
+            self.client_info, cmd.service, cmd.instance)
+        self.sendMessage(logfiles.serialize())
+
+    @command(Commands.REQUEST_CONF_FILES)
+    def requestConfFiles(self, cmd):
+        conffiles = self.factory.jobhandler.request_conffiles(
+            self.client_info, cmd.service, cmd.instance)
+        self.sendMessage(conffiles.serialize())
 
     @command(Commands.START_SERVICE)
     def startService(self, cmd):
@@ -159,6 +182,12 @@ class WSServer(WebSocketServerProtocol):
     def restartService(self, cmd):
         self.factory.jobhandler.restart_service(self.client_info,
                                                 cmd.service, cmd.instance)
+
+    @command(Commands.SEND_CONF_FILE)
+    def sendConfFile(self, cmd):
+        self.factory.jobhandler.send_conffile(self.client_info,
+                                              cmd.service, cmd.instance,
+                                              cmd.filename, cmd.contents)
 
 
 class WSServerFactory(WebSocketServerFactory):

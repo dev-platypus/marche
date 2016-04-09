@@ -24,6 +24,8 @@
 #
 # *****************************************************************************
 
+from __future__ import print_function
+
 import cmd
 import sys
 import ctypes
@@ -34,8 +36,11 @@ sys.path.insert(0, path.abspath(path.join(path.dirname(__file__), '..')))
 
 from marche.client import Client
 from marche.protocol import ConnectedEvent, ServiceListEvent, StatusEvent, \
-    ErrorEvent, RequestServiceListCommand, StartCommand, StopCommand, \
-    RestartCommand
+    ErrorEvent, ControlOutputEvent, ConffileEvent, LogfileEvent, \
+    RequestServiceListCommand, RequestServiceStatusCommand, StartCommand, \
+    StopCommand, RestartCommand, RequestControlOutputCommand, \
+    RequestLogFilesCommand, RequestConfFilesCommand, SendConfFileCommand, \
+    TriggerReloadCommand
 from marche.jobs import STATE_STR, DEAD, RUNNING, WARNING, STARTING, \
     STOPPING, INITIALIZING, NOT_RUNNING, NOT_AVAILABLE
 from marche.colors import colorize
@@ -47,7 +52,7 @@ except Exception:
 
 
 class Console(cmd.Cmd):
-    prompt = '\x1b[01mmarche->\x1b[00m '
+    prompt = colorize('bold', 'marche->') + ' '
     coloring = {
         DEAD: 'darkred',
         NOT_RUNNING: 'darkgray',
@@ -84,17 +89,21 @@ class Console(cmd.Cmd):
             print('\r--> Error: %s' % event.desc)
         elif isinstance(event, ServiceListEvent):
             print('\rList of services:')
-            print('%-20s Current state' % 'Service')
-            print('-' * 35)
+            print('%-25s Current state' % 'Service')
+            print('-' * 40)
             for svc, instances in event.services.items():
                 for inst, info in instances.items():
-                    print('%-20s %s' % (self._svcname(svc, inst),
+                    print('%-25s %s' % (self._svcname(svc, inst),
                                         self._fmt_state(info['state'])))
-            print('-' * 35)
+            print('-' * 40)
         elif isinstance(event, StatusEvent):
             print('\r--> %s is now %s' %
                   (self._svcname(event.service, event.instance),
                    self._fmt_state(event.state)))
+        elif isinstance(event, ControlOutputEvent):
+            print('\rStart/stop output of %s:' % self._svcname(event.service,
+                                                               event.instance))
+            print(''.join(event.content), end='')
         if librl:
             # Display a new prompt right now (unfortunately not exported by
             # the readline module.)
@@ -107,16 +116,25 @@ class Console(cmd.Cmd):
         try:
             return cmd.Cmd.onecmd(self, line)
         except Exception as err:
-            print '\rError: %s' % err
+            print('\rError: %s' % err)
 
     def do_EOF(self, arg):
         self.client.close()
         return True
     do_q = do_quit = do_EOF
 
+    def do_reload(self, arg):
+        self.client.send(TriggerReloadCommand())
+
     def do_list(self, arg):
         self.client.send(RequestServiceListCommand())
     do_l = do_list
+
+    def do_status(self, arg):
+        self.client.send(RequestServiceStatusCommand(*self._svcinst(arg)))
+
+    def do_output(self, arg):
+        self.client.send(RequestControlOutputCommand(*self._svcinst(arg)))
 
     def do_start(self, arg):
         self.client.send(StartCommand(*self._svcinst(arg)))
