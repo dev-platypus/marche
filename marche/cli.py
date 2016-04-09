@@ -30,17 +30,9 @@ import cmd
 import sys
 import ctypes
 import logging
-from os import path
-
-sys.path.insert(0, path.abspath(path.join(path.dirname(__file__), '..')))
 
 from marche.client import Client
-from marche.protocol import ConnectedEvent, ServiceListEvent, StatusEvent, \
-    ErrorEvent, ControlOutputEvent, ConffileEvent, LogfileEvent, \
-    RequestServiceListCommand, RequestServiceStatusCommand, StartCommand, \
-    StopCommand, RestartCommand, RequestControlOutputCommand, \
-    RequestLogFilesCommand, RequestConfFilesCommand, SendConfFileCommand, \
-    TriggerReloadCommand
+from marche import protocol as proto
 from marche.jobs import STATE_STR, DEAD, RUNNING, WARNING, STARTING, \
     STOPPING, INITIALIZING, NOT_RUNNING, NOT_AVAILABLE
 from marche.colors import colorize
@@ -70,7 +62,7 @@ class Console(cmd.Cmd):
         self.client = Client(host, 12132, self.printEvent, logging)
         connectedEvent = self.client.getServerInfo()
         self.printEvent(connectedEvent)
-        self.client.send(RequestServiceListCommand())
+        self.client.send(proto.RequestServiceListCommand())
 
     def _svcname(self, svc, inst):
         return '%s.%s' % (svc, inst) if inst else svc
@@ -82,12 +74,12 @@ class Console(cmd.Cmd):
         return colorize(self.coloring[state], STATE_STR[state])
 
     def printEvent(self, event):
-        if isinstance(event, ConnectedEvent):
+        if isinstance(event, proto.ConnectedEvent):
             print('\rConnected: daemon version %s, protocol version %s' %
                   (event.daemon_version, event.proto_version))
-        elif isinstance(event, ErrorEvent):
+        elif isinstance(event, proto.ErrorEvent):
             print('\r--> Error: %s' % event.desc)
-        elif isinstance(event, ServiceListEvent):
+        elif isinstance(event, proto.ServiceListEvent):
             print('\rList of services:')
             print('%-25s Current state' % 'Service')
             print('-' * 40)
@@ -96,11 +88,11 @@ class Console(cmd.Cmd):
                     print('%-25s %s' % (self._svcname(svc, inst),
                                         self._fmt_state(info['state'])))
             print('-' * 40)
-        elif isinstance(event, StatusEvent):
+        elif isinstance(event, proto.StatusEvent):
             print('\r--> %s is now %s' %
                   (self._svcname(event.service, event.instance),
                    self._fmt_state(event.state)))
-        elif isinstance(event, ControlOutputEvent):
+        elif isinstance(event, proto.ControlOutputEvent):
             print('\rStart/stop output of %s:' % self._svcname(event.service,
                                                                event.instance))
             print(''.join(event.content), end='')
@@ -124,29 +116,32 @@ class Console(cmd.Cmd):
     do_q = do_quit = do_EOF
 
     def do_reload(self, arg):
-        self.client.send(TriggerReloadCommand())
+        self.client.send(proto.TriggerReloadCommand())
 
     def do_list(self, arg):
-        self.client.send(RequestServiceListCommand())
+        self.client.send(proto.RequestServiceListCommand())
     do_l = do_list
 
     def do_status(self, arg):
-        self.client.send(RequestServiceStatusCommand(*self._svcinst(arg)))
+        self.client.send(
+            proto.RequestServiceStatusCommand(*self._svcinst(arg)))
 
     def do_output(self, arg):
-        self.client.send(RequestControlOutputCommand(*self._svcinst(arg)))
+        self.client.send(
+            proto.RequestControlOutputCommand(*self._svcinst(arg)))
 
     def do_start(self, arg):
-        self.client.send(StartCommand(*self._svcinst(arg)))
+        self.client.send(proto.StartCommand(*self._svcinst(arg)))
 
     def do_stop(self, arg):
-        self.client.send(StopCommand(*self._svcinst(arg)))
+        self.client.send(proto.StopCommand(*self._svcinst(arg)))
 
     def do_restart(self, arg):
-        self.client.send(RestartCommand(*self._svcinst(arg)))
+        self.client.send(proto.RestartCommand(*self._svcinst(arg)))
 
 
-try:
-    Console().cmdloop()
-except KeyboardInterrupt:
-    pass
+def main():
+    try:
+        Console().cmdloop()
+    except KeyboardInterrupt:
+        pass
