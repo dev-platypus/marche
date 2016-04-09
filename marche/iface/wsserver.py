@@ -58,7 +58,8 @@ from autobahn.asyncio.websocket import asyncio, WebSocketServerProtocol, \
 
 from marche.iface.base import Interface as BaseInterface
 from marche.protocol import Errors, Command, ServiceCommand, Commands, \
-    ConnectedEvent, ErrorEvent, AuthEvent, PROTO_VERSION
+    ConnectedEvent, ErrorEvent, AuthEvent, ServiceListEvent, StatusEvent, \
+    PROTO_VERSION
 from marche.permission import ClientInfo
 from marche.auth import AuthFailed
 from marche.jobs import Busy, Fault, Unauthorized
@@ -249,7 +250,17 @@ class Interface(BaseInterface):
                 pass
 
     def emit_event(self, event):
-        # TODO: filter list events by permission
-        serialized = event.serialize()
-        for client in list(self.factory.clients):
-            client.sendMessage(serialized)
+        handler = self.factory.jobhandler
+        if isinstance(event, StatusEvent):
+            serialized = event.serialize()
+            for client in list(self.factory.clients):
+                if handler.can_see_status(client.client_info, event):
+                    client.sendMessage(serialized)
+        elif isinstance(event, ServiceListEvent):
+            for client in list(self.factory.clients):
+                filtered = handler.filter_services(client.client_info, event)
+                client.sendMessage(filtered.serialize())
+        else:
+            serialized = event.serialize()
+            for client in list(self.factory.clients):
+                client.sendMessage(serialized)
