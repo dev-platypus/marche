@@ -190,10 +190,10 @@ class MainWindow(QMainWindow):
         self.jobTree.clear()
 
         for service, serviceInfo in serviceList.items():
-
-            if len(serviceInfo) == 1 and '' in serviceInfo:  # service without inst
-                serviceItem = JobTreeItem(self.jobTree, service, serviceInfo[''])
+            instances = serviceInfo['instances']
+            if len(instances) == 1 and '' in instances:  # service without inst
+                serviceItem = JobTreeItem(self.jobTree, service, instances[''])
             else:
                 serviceItem = JobTreeItem(self.jobTree, service, None)
-                for instance, jobInfo in serviceInfo.items():
+                for instance, jobInfo in instances.items():
                     JobTreeItem(serviceItem, instance, jobInfo)

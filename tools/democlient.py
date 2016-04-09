@@ -91,8 +91,8 @@ class Console(cmd.Cmd):
             print('\rList of services:')
             print('%-25s Current state' % 'Service')
             print('-' * 40)
-            for svc, instances in event.services.items():
-                for inst, info in instances.items():
+            for svc, info in event.services.items():
+                for inst, info in info['instances'].items():
                     print('%-25s %s' % (self._svcname(svc, inst),
                                         self._fmt_state(info['state'])))
             print('-' * 40)
