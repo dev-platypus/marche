@@ -99,7 +99,11 @@ class Client(object):
         self.factory.eventHandler = func
 
     def close(self):
+        if self.factory.client is None:
+            return
         self.factory.client.sendClose()
 
     def send(self, cmd):
+        if self.factory.client is None:
+            raise RuntimeError('client is disconnected')
         self.factory.client.sendMessage(cmd.serialize())
