@@ -141,6 +141,10 @@ class WSServer(WebSocketServerProtocol):
     def triggerReload(self, cmd):
         self.factory.jobhandler.trigger_reload()
 
+    @command(Commands.SCAN_NETWORK)
+    def scanNetwork(self, cmd):
+        self.factory.jobhandler.scan_network()
+
     @command(Commands.REQUEST_SERVICE_LIST)
     def requestServiceList(self, cmd):
         svclist = self.factory.jobhandler.request_service_list(

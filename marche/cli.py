@@ -108,6 +108,8 @@ class Console(cmd.Cmd):
                 self.client.send(proto.RequestServiceListCommand())
             else:
                 print(colorize('red', '\rAuthentication failed.'))
+        elif isinstance(event, proto.FoundHostEvent):
+            print('\rFound host: %s' % colorize('bold', event.host))
         else:
             print('\r')
         if librl:
@@ -137,6 +139,9 @@ class Console(cmd.Cmd):
 
     def do_reload(self, arg):
         self.client.send(proto.TriggerReloadCommand())
+
+    def do_scan(self, arg):
+        self.client.send(proto.ScanNetworkCommand())
 
     def do_list(self, arg):
         self.client.send(proto.RequestServiceListCommand())
