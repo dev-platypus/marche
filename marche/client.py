@@ -74,9 +74,8 @@ class Client(object):
         self.thd = threading.Thread(target=self._thread, args=(host, port))
         self.thd.setDaemon(True)
         self.thd.start()
-        self.connected.wait()
-        if self.factory.client is None:
-            raise RuntimeError('Connection refused')
+        if not self.connected.wait(2) or self.factory.client is None:
+            raise RuntimeError('connection failed')
 
     def _thread(self, host, port):
         try:

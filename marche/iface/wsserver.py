@@ -59,7 +59,7 @@ from autobahn.asyncio.websocket import asyncio, WebSocketServerProtocol, \
 from marche.iface.base import Interface as BaseInterface
 from marche.protocol import Errors, Command, ServiceCommand, Commands, \
     ConnectedEvent, ErrorEvent, AuthEvent, PROTO_VERSION
-from marche.permission import ClientInfo, ADMIN
+from marche.permission import ClientInfo
 from marche.auth import AuthFailed
 from marche.jobs import Busy, Fault, Unauthorized
 from marche import __version__ as DAEMON_VERSION
@@ -100,13 +100,13 @@ class WSServer(WebSocketServerProtocol):
 
     def onConnect(self, request):
         self.log.info('Client connecting: {}'.format(request.peer))
-        self.client_info = ClientInfo(ADMIN)  # TODO
+        self.client_info = ClientInfo(self.factory.jobhandler.unauth_level)
         self.factory.clients.add(self)
 
     def onOpen(self):
-        connectedEvent = ConnectedEvent(PROTO_VERSION,
-                                        DAEMON_VERSION,
-                                        [])  # TODO: implement permissions
+        connectedEvent = ConnectedEvent(
+            PROTO_VERSION, DAEMON_VERSION,
+            self.factory.jobhandler.unauth_level)
         self.sendMessage(connectedEvent.serialize())
 
     def onMessage(self, payload, isBinary):
@@ -249,6 +249,7 @@ class Interface(BaseInterface):
                 pass
 
     def emit_event(self, event):
+        # TODO: filter list events by permission
         serialized = event.serialize()
         for client in list(self.factory.clients):
             client.sendMessage(serialized)
