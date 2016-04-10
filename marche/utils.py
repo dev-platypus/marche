@@ -253,14 +253,15 @@ def extract_loglines(filename, n=500):
     return result
 
 
-def normalize_addr(addr, defport):
+def normalize_addr(addr, defport, lookup_host=True):
     if ':' not in addr:
         addr += ':' + str(defport)
     host, port = addr.split(':')
-    try:
-        host = socket.getfqdn(host)
-    except socket.error:  # pragma: no cover
-        pass
+    if lookup_host:
+        try:
+            host = socket.getfqdn(host)
+        except socket.error:  # pragma: no cover
+            pass
     return host, port
 
 

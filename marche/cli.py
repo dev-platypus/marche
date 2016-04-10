@@ -60,7 +60,8 @@ class Console(cmd.Cmd):
 
     def __init__(self, args, stdout=None):
         cmd.Cmd.__init__(self, stdout=stdout)
-        host, port = normalize_addr(args[0] if args else '127.0.0.1', 12132)
+        host, port = normalize_addr(args[0] if args else '127.0.0.1', 12132,
+                                    lookup_host=False)
         self.client = Client(host, int(port), self.printEvent, logging)
         connectedEvent = self.client.getServerInfo()
         self.write = self.stdout.write
