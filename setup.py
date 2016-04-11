@@ -30,7 +30,8 @@ from os import listdir, path
 import marche.utils
 import marche.version
 
-scripts = ['bin/marched', 'bin/marche-gui']
+
+scripts = ['bin/marched', 'bin/marche-gui', 'bin/marche-cli']
 
 srcdir = path.dirname(__file__)
 uidir = path.join(srcdir, 'marche', 'gui', 'ui')
