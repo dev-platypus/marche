@@ -27,7 +27,7 @@
 import os
 import logging
 
-from pytest import raises, yield_fixture, mark
+from pytest import raises, yield_fixture
 
 from marche import protocol as proto
 from marche.config import Config
@@ -62,9 +62,9 @@ class Events(object):
         self.events.append(event)
 
     def expect_event(self, cls):
-        n = len(self.events)
-        wait(100, lambda: len(self.events) > n)
+        wait(100, lambda: self.events)
         event = self.events[-1]
+        del self.events[:]
         assert isinstance(event, cls)
         return event
 
@@ -86,7 +86,6 @@ def test_client_errors(wsserver_iface):
                   lambda event: None, logger)
 
 
-@mark.skipif(os.name == 'nt', reason='hangs on Windows')
 def test_basic(client):
     serverinfo = client.getServerInfo()
     assert serverinfo.proto_version == proto.PROTO_VERSION
