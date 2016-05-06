@@ -41,7 +41,7 @@ class Host(QObject):
     logfilesReceived = pyqtSignal(object, str, str, dict)  # self, service, instance, files
     ctrlOutputReceived = pyqtSignal(object, str, str, list)  # self, service, instance, lines
 
-    def __init__(self, ip, port, subnet, parent=None):
+    def __init__(self, ip, port, subnet=None, parent=None):
         QObject.__init__(self, parent)
         self._ip = ip
         self._subnet = subnet
@@ -58,6 +58,10 @@ class Host(QObject):
     def subnet(self):
         return self._subnet
 
+    @subnet.setter
+    def subnet(self, value):
+        self._subnet = value
+
     @property
     def client(self):
         return self._client
@@ -71,6 +75,10 @@ class Host(QObject):
         if not self._serviceList:
             self._client.send(RequestServiceListCommand())
         return self._serviceList
+
+    @property
+    def serverInfo(self):
+        return self._client.getServerInfo()
 
     def _eventHandler(self, ev):
         if isinstance(ev, ServiceListEvent):
@@ -98,24 +106,12 @@ class SubnetScanThread(QThread):
     hostFound = pyqtSignal(object)
     scanningHost = pyqtSignal(str)
 
-    AUTOSCAN_INTERVAL = 30.0
-
     def __init__(self, subnet, parent=None):
         QThread.__init__(self, parent)
         self._net = ipaddress.ip_network(subnet)
-        self._once = False
-
-    def start(self, once=False):
-        self._once = once
-        QThread.start(self)
 
     def run(self):
-        if self._once:
-            self._scan()
-        else:
-            while True:
-                self._scan()
-                time.sleep(SubnetScanThread.AUTOSCAN_INTERVAL)
+        self._scan()
 
     def _scan(self):
         # TODO improve (nmap -parallel?)
@@ -131,8 +127,9 @@ class SubnetScanThread(QThread):
 
 class Subnet(QObject):
 
-    newHost = pyqtSignal(str)
+    newHost = pyqtSignal(object)
     scanningHost = pyqtSignal(str)
+    scanDone = pyqtSignal()
 
     def __init__(self, subnet, parent=None):
         QObject.__init__(self, parent)
@@ -142,14 +139,26 @@ class Subnet(QObject):
         self._scanThread = SubnetScanThread(subnet)
         self._scanThread.scanningHost.connect(self.scanningHost)
         self._scanThread.hostFound.connect(self.handleHostFound)
+        self._scanThread.finished.connect(self.scanDone)
 
-    def handleHostFound(self, host):
+    def addHost(self, host):
+        if host not in self._hosts:
+            self._hosts.append(host)
+
+    def hasHost(self, hostadr):
+        for host in self._hosts:
+            if hostadr in [host.ip, host.hostname]:
+                return True
+        return False
+
+    def handleHostFound(self, hostadr):
+        host =  Host(hostadr, 12132, self)
         if host not in self._hosts:
             self._hosts.append(host)
             self.newHost.emit(host)
 
-    def startScan(self, once=True):
-        self._scanThread.start(once)
+    def startScan(self):
+        self._scanThread.start()
 
     def stopScan(self):
         self._scanThread.stop()
@@ -169,32 +178,14 @@ class Model(QObject):
     def __init__(self, parent=None):
         QObject.__init__(self, parent)
         self._subnets = {} # {subnetid/prefix : Subnet}
-        self._hosts = []
-        self._autoscan = False
 
-    @property
-    def autoscan(self):
-        return self._autoscan
-
-    @autoscan.setter
-    def autoscan(self, value):
-        if value and not self._autoscan:
-            for _, subnet in self._subnets.items():
-                subnet.stopScan()
-                subnet.startScan(self._autoscan, False)
-        elif not value:
-            for _, subnet in self._subnets.items():
-                subnet.stopScan()
-                subnet.startScan(self._autoscan, True)
-
-        self._autoscan = value
-
-    def addSubnet(self, subnet):
+    def addSubnet(self, subnet, scan=True):
         if subnet not in self._subnets:
             net = Subnet(subnet)
             net.scanningHost.connect(self.scanningHost)
             net.newHost.connect(self._subnetHostFound)
-            net.startScan(not self._autoscan)
+            if scan:
+                net.startScan()
 
             self._subnets[subnet] = net
 
@@ -203,8 +194,19 @@ class Model(QObject):
             self._subnets[subnet].stopScan()
             del self._subnets[subnet]
 
-    def addHost(self, host):
-        pass
+    def addHost(self, hostadr):
+        if self.findSubnetForHost(hostadr):
+            return
+
+        hostObj = Host(hostadr, 12132)
+        self._connectHostSignals(hostObj)
+        subnet = hostObj.serverInfo.subnet
+
+        if subnet not in self._subnets:
+            self.addSubnet(subnet)
+
+        self._subnets[subnet].addHost(hostObj)
+        self.newHost.emit(subnet, hostObj)
 
     def removeHost(self, host):
         pass
@@ -221,19 +223,26 @@ class Model(QObject):
     def stopPollHost(self, host):
         pass
 
+    def findSubnetForHost(self, hostadr):
+        for net in self._subnets.values():
+            if net.hasHost(hostadr):
+                return net
+
+        return None
+
     def _subnetHostFound(self, host):
-        hostObj = Host(host, 12132, self.sender())
+        self._connectHostSignals(host)
 
-        hostObj.newServiceList.connect(self.newServiceList)
-        hostObj.newState.connect(self.newState)
-        hostObj.errorOccured.connect(self.errorOccured)
-        hostObj.conffilesReceived.connect(self.conffilesReceived)
-        hostObj.logfilesReceived.connect(self.logfilesReceived)
-        hostObj.ctrlOutputReceived.connect(self.ctrlOutputReceived)
-
-        self._hosts.append(hostObj)
-        self.newHost.emit(str(self.sender().subnet), hostObj)
+        self.newHost.emit(str(self.sender().subnet), host)
 
     def disconnect(self):
         for host in self._hosts:
             host.disconnect()
+
+    def _connectHostSignals(self, host):
+        host.newServiceList.connect(self.newServiceList)
+        host.newState.connect(self.newState)
+        host.errorOccured.connect(self.errorOccured)
+        host.conffilesReceived.connect(self.conffilesReceived)
+        host.logfilesReceived.connect(self.logfilesReceived)
+        host.ctrlOutputReceived.connect(self.ctrlOutputReceived)

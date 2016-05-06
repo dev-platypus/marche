@@ -56,6 +56,7 @@ class MainWindow(QMainWindow):
         self._model.newServiceList.connect(self.updatejobTree)
         self._model.newState.connect(self.updateStatus)
 
+        self.actionAddHost.triggered.connect(self.addHost)
         self.actionAddSubnet.triggered.connect(self.addSubnet)
         self.actionExit.triggered.connect(self.onExit)
 
@@ -63,6 +64,18 @@ class MainWindow(QMainWindow):
         ownSubnet = determine_subnet()
         if ownSubnet:
             self._model.addSubnet(ownSubnet)
+
+    def addHost(self):
+        host, ok = QInputDialog.getText(self,
+                                          'Add host',
+                                          'Host (ip or fqdn):')
+
+        if ok and host:
+            try:
+                self._model.addHost(host)
+            except RuntimeError as e:
+                QMessageBox.critical(self, 'Could not add %s' % host,
+                                     'Could not add %s: %s' % (host, e))
 
     def addSubnet(self):
         subnet, ok = QInputDialog.getText(self,
