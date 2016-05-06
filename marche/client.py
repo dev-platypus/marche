@@ -128,7 +128,7 @@ class Client(object):
         self.factory.client.sendMessage(cmd.serialize())
 
     def sendServiceCommand(self, cmdClass, service, instance):
-        self.client.send(cmdClass(service, instance))
+        self.send(cmdClass(service, instance))
 
 
 @asyncio.coroutine
