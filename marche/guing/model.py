@@ -90,6 +90,9 @@ class Host(QObject):
         elif isinstance(ev, ControlOutputEvent):
             self.ctrlOutputReceived.emit(self, ev.service, ev.instance, ev.content)
 
+    def disconnect(self):
+        self._client.close()
+
 
 class SubnetScanThread(QThread):
     hostFound = pyqtSignal(object)
@@ -230,3 +233,7 @@ class Model(QObject):
 
         self._hosts.append(hostObj)
         self.newHost.emit(str(self.sender().subnet), hostObj)
+
+    def disconnect(self):
+        for host in self._hosts:
+            host.disconnect()

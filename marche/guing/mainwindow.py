@@ -26,7 +26,7 @@ import socket
 from PyQt5.QtCore import Qt
 from PyQt5.QtGui import QIcon
 from PyQt5.QtWidgets import QMainWindow, QTreeWidgetItem, QInputDialog, \
-    QWidget, QHeaderView, QMessageBox
+    QWidget, QHeaderView, QMessageBox, QApplication
 
 from marche import get_version
 import marche.guing.res  # noqa, pylint: disable=unused-import
@@ -57,6 +57,7 @@ class MainWindow(QMainWindow):
         self._model.newState.connect(self.updateStatus)
 
         self.actionAddSubnet.triggered.connect(self.addSubnet)
+        self.actionExit.triggered.connect(self.onExit)
 
         # start with own subnet
         ownSubnet = determine_subnet()
@@ -70,6 +71,10 @@ class MainWindow(QMainWindow):
 
         if ok and subnet:
             self._model.addSubnet(subnet)
+
+    def onExit(self):
+        self._model.disconnect()
+        QApplication.quit()
 
     def _addHostItem(self, subnet, host):
         subnetItem = self._ensureSubnetItemExistance(subnet)
