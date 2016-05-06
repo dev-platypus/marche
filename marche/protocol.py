@@ -185,10 +185,11 @@ class Event(SerializableMessage):
 class ConnectedEvent(Event):
     type = Events.CONNECTED
 
-    def __init__(self, proto_version, daemon_version, unauth_level):
+    def __init__(self, proto_version, daemon_version, unauth_level, subnet):
         self.proto_version = proto_version
         self.daemon_version = daemon_version
         self.unauth_level = unauth_level
+        self.subnet = subnet
 
 
 class ServiceListEvent(Event):

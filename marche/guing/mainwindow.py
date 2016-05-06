@@ -22,9 +22,6 @@
 # *****************************************************************************
 
 import socket
-import ipaddress
-
-import psutil
 
 from PyQt5.QtCore import Qt
 from PyQt5.QtGui import QIcon
@@ -34,6 +31,7 @@ from PyQt5.QtWidgets import QMainWindow, QTreeWidgetItem, QInputDialog, \
 from marche import get_version
 import marche.guing.res  # noqa, pylint: disable=unused-import
 from marche.guing.util import loadUi
+from marche.utils import determine_subnet
 from marche.guing.model import Model
 from marche.guing.treeitems import HostTreeItem, JobTreeItem
 
@@ -61,7 +59,7 @@ class MainWindow(QMainWindow):
         self.actionAddSubnet.triggered.connect(self.addSubnet)
 
         # start with own subnet
-        ownSubnet = self._determineOwnSubnet()
+        ownSubnet = determine_subnet()
         if ownSubnet:
             self._model.addSubnet(ownSubnet)
 
@@ -72,21 +70,6 @@ class MainWindow(QMainWindow):
 
         if ok and subnet:
             self._model.addSubnet(subnet)
-
-    def _determineOwnSubnet(self):
-        # TODO move to platyutil
-        try:
-            ip = socket.gethostbyname(socket.gethostname())
-        except socket.gaierror:
-            # no hostname set, or weird hosts configuration
-            return None
-        ifs = psutil.net_if_addrs()
-
-        for _, addrs in ifs.items():
-            for addr in addrs:
-                if addr.address == ip:
-                    return str(ipaddress.ip_network('%s/%s' %
-                                                    (ip, addr.netmask), False))
 
     def _addHostItem(self, subnet, host):
         subnetItem = self._ensureSubnetItemExistance(subnet)

@@ -36,7 +36,6 @@ class WSClient(WebSocketClientProtocol):
     def onConnect(self, response):
         self.factory.client = self
         self.factory.connected.set()
-        print("Connected to Server: {}".format(response.peer))
 
     def onClose(self, wasClean, code, reason):
         self.factory.client = None

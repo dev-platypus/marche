@@ -31,6 +31,8 @@ import os
 import re
 import sys
 import socket
+import ipaddress
+import psutil
 import select
 import collections
 from os import path
@@ -295,3 +297,19 @@ def bytencode(s):
     if not isinstance(s, bytes):
         return s.encode('utf-8')
     return s
+
+
+def determine_subnet():
+    try:
+        ip = socket.gethostbyname(socket.gethostname())
+    except socket.gaierror:
+        # no hostname set, or weird hosts configuration
+        return None
+    ifs = psutil.net_if_addrs()
+
+    for _, addrs in ifs.items():
+        for addr in addrs:
+            if addr.address == ip:
+                return str(ipaddress.ip_network(u'%s/%s' %
+                                                (ip, addr.netmask), False))
+    return None

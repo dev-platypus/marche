@@ -63,6 +63,7 @@ from marche.protocol import Errors, Command, ServiceCommand, Commands, \
 from marche.permission import ClientInfo
 from marche.auth import AuthFailed
 from marche.jobs import Busy, Fault, Unauthorized
+from marche.utils import determine_subnet
 from marche import __version__ as DAEMON_VERSION
 
 
@@ -107,7 +108,8 @@ class WSServer(WebSocketServerProtocol):
     def onOpen(self):
         connectedEvent = ConnectedEvent(
             PROTO_VERSION, DAEMON_VERSION,
-            self.factory.jobhandler.unauth_level)
+            self.factory.jobhandler.unauth_level,
+            determine_subnet())
         self.sendMessage(connectedEvent.serialize())
 
     def onMessage(self, payload, isBinary):
