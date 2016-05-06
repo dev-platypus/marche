@@ -29,7 +29,9 @@ import threading
 from autobahn.asyncio.websocket import asyncio, WebSocketClientProtocol, \
     WebSocketClientFactory
 
-from marche.protocol import Event, ConnectedEvent
+from marche.protocol import Event, ConnectedEvent, RequestServiceListCommand, \
+    RequestServiceStatusCommand, RequestControlOutputCommand, StartCommand, \
+    StopCommand, RestartCommand
 
 
 class WSClient(WebSocketClientProtocol):
@@ -97,6 +99,24 @@ class Client(object):
             raise RuntimeError('server info not received')
         return self.factory.serverInfo
 
+    def requestServiceList(self):
+        self.send(RequestServiceListCommand())
+
+    def requestStatus(self, service, instance):
+        self.sendServiceCommand(RequestServiceStatusCommand, service, instance)
+
+    def requestOutput(self, service, instance):
+        self.sendServiceCommand(RequestControlOutputCommand, service, instance)
+
+    def startService(self, service, instance):
+        self.sendServiceCommand(StartCommand, service, instance)
+
+    def stopService(self, service, instance):
+        self.sendServiceCommand(StopCommand, service, instance)
+
+    def restartService(self, service, instance):
+        self.sendServiceCommand(RestartCommand, service, instance)
+
     def close(self):
         if self.factory.client is None:
             return
@@ -106,3 +126,6 @@ class Client(object):
         if self.factory.client is None:
             raise RuntimeError('client is disconnected')
         self.factory.client.sendMessage(cmd.serialize())
+
+    def sendServiceCommand(self, cmdClass, service, instance):
+        self.client.send(cmdClass(service, instance))
