@@ -50,9 +50,7 @@ class MainWindow(QMainWindow):
         self.srvTree.currentItemChanged.connect(self.onSrvTreeItemChanged)
 
         self._model = Model()
-        self._model.autoscan = True
-        self._model.newHost.connect(self._addHostItem)
-        self._model.scanningHost.connect(self.onScanningHost)
+        self._model.newHost.connect(self.addHostItem)
         self._model.newServiceList.connect(self.updatejobTree)
         self._model.newState.connect(self.updateStatus)
 
@@ -63,16 +61,19 @@ class MainWindow(QMainWindow):
         # start with own subnet
         ownSubnet = determine_subnet()
         if ownSubnet:
-            self._model.addSubnet(ownSubnet)
+            self._model.scanSubnet(ownSubnet)
 
     def addHost(self):
         host, ok = QInputDialog.getText(self,
                                           'Add host',
-                                          'Host (ip or fqdn):')
+                                          'Host (host[:port]):')
 
         if ok and host:
+            port = 12132
+            if ':' in host:
+                host, port = host.split(':')
             try:
-                self._model.addHost(host)
+                self._model.addHost(host, port)
             except RuntimeError as e:
                 QMessageBox.critical(self, 'Could not add %s' % host,
                                      'Could not add %s: %s' % (host, e))
@@ -83,14 +84,14 @@ class MainWindow(QMainWindow):
                                           'Subnet (netid/prefix):')
 
         if ok and subnet:
-            self._model.addSubnet(subnet)
+            self._model.scanSubnet(subnet)
 
     def onExit(self):
         self._model.disconnect()
         self.close()
 
-    def _addHostItem(self, subnet, host):
-        subnetItem = self._ensureSubnetItemExistance(subnet)
+    def addHostItem(self, host):
+        subnetItem = self._ensureSubnetItemExistance(host.subnet)
         HostTreeItem(subnetItem, host)
 
     def _ensureSubnetItemExistance(self, subnet):
