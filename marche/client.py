@@ -129,3 +129,31 @@ class Client(object):
 
     def sendServiceCommand(self, cmdClass, service, instance):
         self.client.send(cmdClass(service, instance))
+
+
+@asyncio.coroutine
+def tryConnect(loop, factory, host, port, callback):
+    try:
+        transport, protocol = yield from loop.create_connection(factory, host,
+                                                                port)
+        callback(host)
+    except Exception:
+        pass
+
+
+def testConnection(hosts, port, callback):
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
+    coros = []
+
+    for host in hosts:
+        host = str(host)
+        addr = 'ws://%s:%d' % (host, port)
+        factory = WSClientFactory(addr, threading.Event(), threading.Event())
+        coros.append(tryConnect(loop, factory, host, port, callback))
+
+
+    loop.run_until_complete(
+        asyncio.gather(*coros)
+    )
+    loop.run_forever()
