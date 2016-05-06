@@ -189,13 +189,14 @@ class MainWindow(QMainWindow):
             instanceItem.updateStatus(state, status)
 
     def _displaySingleHost(self, host, serviceList):
+        host = host.ip
         self.jobTree.clear()
 
         for service, serviceInfo in serviceList.items():
             instances = serviceInfo['instances']
             if len(instances) == 1 and '' in instances:  # service without inst
-                serviceItem = JobTreeItem(self.jobTree, service, instances[''])
+                serviceItem = JobTreeItem(self.jobTree, host, service, None, instances[''], self._model)
             else:
-                serviceItem = JobTreeItem(self.jobTree, service, None)
+                serviceItem = JobTreeItem(self.jobTree, host, service, None, None, self._model)
                 for instance, jobInfo in instances.items():
-                    JobTreeItem(serviceItem, instance, jobInfo)
+                    item = JobTreeItem(serviceItem, host, service, instance, jobInfo, self._model)

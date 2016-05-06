@@ -21,7 +21,7 @@
 #
 # *****************************************************************************
 
-from PyQt5.QtCore import Qt
+from PyQt5.QtCore import Qt, QObject, pyqtSignal
 from PyQt5.QtGui import QIcon, QBrush, QColor
 from PyQt5.QtWidgets import QTreeWidgetItem, QWidget
 
@@ -60,18 +60,23 @@ class HostTreeItem(QTreeWidgetItem):
 
 
 class JobTreeItem(QTreeWidgetItem):
-    def __init__(self, parent, name, jobInfo):
+    def __init__(self, parent, host, service, instance, jobInfo, model):
         QTreeWidgetItem.__init__(self, parent, HOST_TREE_ITEM_TYPE)
         self._jobInfo = jobInfo
-        self._buttons = JobButtonsWidget()
+        self._buttons = JobButtonsWidget(host, service, instance)
 
-        self.setText(0, name)
+        self.setText(0, instance if instance is not None else service)
         self.setExpanded(True)
         self.setTextAlignment(1, Qt.AlignHCenter | Qt.AlignVCenter)
         self.treeWidget().setItemWidget(self, 2, self._buttons)
 
         if jobInfo is not None:
             self.updateStatus(jobInfo['state'], jobInfo['ext_status'])
+
+        self._buttons.startRequested.connect(model.startService)
+        self._buttons.stopRequested.connect(model.stopService)
+        self._buttons.restartRequested.connect(model.restartService)
+
 
     def updateStatus(self, state, extStatus):
         colors = STATE_COLORS.get(state, ('gray', ''))
@@ -86,7 +91,31 @@ class JobTreeItem(QTreeWidgetItem):
 
 
 class JobButtonsWidget(QWidget):
-    def __init__(self, parent=None):
+    startRequested = pyqtSignal(object, object,
+                                object)  # hostadr, service, instance
+    stopRequested = pyqtSignal(object, object,
+                                object)  # hostadr, service, instance
+    restartRequested = pyqtSignal(object, object,
+                                object)  # hostadr, service, instance
+
+    def __init__(self, host, service, instance, parent=None):
         QWidget.__init__(self, parent)
         loadUi(self, 'jobbuttons.ui', subdir='ui')
         self.layout().addStretch(2)
+
+        self._host = host
+        self._service = service
+        self._instance = instance
+
+        self.startBtn.clicked.connect(self.requestStart)
+        self.stopBtn.clicked.connect(self.requestStop)
+        self.restartBtn.clicked.connect(self.requestRestart)
+
+    def requestStart(self):
+        self.startRequested.emit(self._host, self._service, self._instance)
+
+    def requestStop(self):
+        self.stopRequested.emit(self._host, self._service, self._instance)
+
+    def requestRestart(self):
+        self.restartRequested.emit(self._host, self._service, self._instance)

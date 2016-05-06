@@ -191,6 +191,15 @@ class Model(QObject):
         self._subnetCache[subnetid].finished.connect(self.subnetScanFinished)
         self._subnetCache[subnetid].triggerScan()
 
+    def startService(self, hostadr, service, instance):
+        self._hosts[hostadr].startService(service, instance)
+
+    def stopService(self, hostadr, service, instance):
+        self._hosts[hostadr].stopService(service, instance)
+
+    def restartService(self, hostadr, service, instance):
+        self._hosts[hostadr].restartService(service, instance)
+
     ## slots ##
     def subnetScanFinished(self):
         subnetid = self.sender().address
