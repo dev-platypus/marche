@@ -36,11 +36,11 @@ from marche.protocol import Event, ConnectedEvent, RequestServiceListCommand, \
 
 class WSClient(WebSocketClientProtocol):
     def onConnect(self, response):
-        self.factory.client = self
+        self.factory.clients.append(self)
         self.factory.connected.set()
 
     def onClose(self, wasClean, code, reason):
-        self.factory.client = None
+        self.factory.clients.remove(self)
         self.factory.loop.stop()
 
     def onMessage(self, payload, isBinary):
@@ -49,6 +49,8 @@ class WSClient(WebSocketClientProtocol):
             self.factory.serverInfo = event
             self.factory.gotServerInfo.set()
         else:
+            if self.factory.eventHandler is None:
+                return
             self.factory.eventHandler(event)
 
 
@@ -62,7 +64,7 @@ class WSClientFactory(WebSocketClientFactory):
         self.protocol = WSClient
         self.connected = connected
         self.gotServerInfo = got_info
-        self.client = None
+        self.clients = []
         self.eventHandler = None
         self.serverInfo = None
 
@@ -134,26 +136,33 @@ class Client(object):
 @asyncio.coroutine
 def tryConnect(loop, factory, host, port, callback):
     try:
-        transport, protocol = yield from loop.create_connection(factory, host,
-                                                                port)
+        print("Connecting to %r..." % host)
+        future = loop.create_connection(factory, host, port)
+        transport, protocol = yield from asyncio.wait_for(future, timeout=1)
         callback(host)
+        print("Found %r" % host)
+        return transport
     except Exception:
         pass
 
 
 def testConnection(hosts, port, callback):
+    print("Called testConnection")
     loop = asyncio.new_event_loop()
     asyncio.set_event_loop(loop)
     coros = []
 
-    for host in hosts:
+    for host in sorted(hosts):
         host = str(host)
         addr = 'ws://%s:%d' % (host, port)
         factory = WSClientFactory(addr, threading.Event(), threading.Event())
         coros.append(tryConnect(loop, factory, host, port, callback))
 
+    print("Done iterating")
 
-    loop.run_until_complete(
-        asyncio.gather(*coros)
-    )
-    loop.run_forever()
+    future = asyncio.gather(*coros)
+    print(future)
+    task = asyncio.ensure_future(future, loop=loop)
+    print("After ensure")
+    loop.run_until_complete(task)
+    loop.stop()

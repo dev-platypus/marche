@@ -30,7 +30,7 @@ from PyQt5.QtCore import QThread, pyqtSignal, QObject
 
 from marche.protocol import ServiceListEvent, StatusEvent, ErrorEvent, \
     ConffileEvent, LogfileEvent, ControlOutputEvent, RequestServiceListCommand
-from marche.client import Client
+from marche.client import Client, testConnection
 
 
 class Host(QObject):
@@ -133,15 +133,7 @@ class Subnet(QThread):
         self._scan()
 
     def _scan(self):
-        # TODO improve (nmap -parallel?)
-        for host in self._net.hosts():
-            try:
-                s = socket.create_connection((str(host), '12132'), timeout=0.05)
-                s.close()
-
-                self.hostFound.emit(str(host))
-            except IOError:
-                pass
+        testConnection(self._net.hosts(), 12132, self.hostFound.emit)
 
 
 class Model(QObject):
