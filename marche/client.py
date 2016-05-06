@@ -52,6 +52,10 @@ class WSClient(WebSocketClientProtocol):
 
 class WSClientFactory(WebSocketClientFactory):
     def __init__(self, url, connected, got_info):
+        try:
+            loop = asyncio.get_event_loop()
+        except RuntimeError:
+            asyncio.set_event_loop(asyncio.new_event_loop())
         WebSocketClientFactory.__init__(self, url=url)
         self.protocol = WSClient
         self.connected = connected

@@ -122,10 +122,10 @@ class SubnetScanThread(QThread):
         for host in self._net.hosts():
             try:
                 self.scanningHost.emit(str(host))
-                s = socket.create_connection((str(host), '12132'), timeout=0.05)
-                s.close()
+                c = Client(str(host), 12132, print, logging)
+                c.close()
                 self.hostFound.emit(str(host))
-            except IOError:
+            except RuntimeError:
                 pass
 
 
