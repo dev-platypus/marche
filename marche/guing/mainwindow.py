@@ -74,7 +74,7 @@ class MainWindow(QMainWindow):
 
     def onExit(self):
         self._model.disconnect()
-        QApplication.quit()
+        self.close()
 
     def _addHostItem(self, subnet, host):
         subnetItem = self._ensureSubnetItemExistance(subnet)
