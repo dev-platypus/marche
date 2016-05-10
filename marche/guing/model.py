@@ -30,7 +30,7 @@ from PyQt5.QtCore import QThread, pyqtSignal, QObject
 
 from marche.protocol import ServiceListEvent, StatusEvent, ErrorEvent, \
     ConffileEvent, LogfileEvent, ControlOutputEvent, RequestServiceListCommand
-from marche.client import Client, testConnection
+from marche.client import Client, testConnections
 
 
 class Host(QObject):
@@ -133,7 +133,7 @@ class Subnet(QThread):
         self._scan()
 
     def _scan(self):
-        testConnection(self._net.hosts(), 12132, self.hostFound.emit)
+        testConnections(self._net.hosts(), 12132, self.hostFound.emit)
 
 
 class Model(QObject):
@@ -195,4 +195,7 @@ class Model(QObject):
     ## slots ##
     def subnetScanFinished(self):
         subnetid = self.sender().address
-        del self._subnetCache[subnetid]
+        try:
+            del self._subnetCache[subnetid]
+        except KeyError:
+            pass

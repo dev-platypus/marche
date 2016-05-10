@@ -36,11 +36,11 @@ from marche.protocol import Event, ConnectedEvent, RequestServiceListCommand, \
 
 class WSClient(WebSocketClientProtocol):
     def onConnect(self, response):
-        self.factory.clients.append(self)
+        self.factory.client = self
         self.factory.connected.set()
 
     def onClose(self, wasClean, code, reason):
-        self.factory.clients.remove(self)
+        self.factory.client = None
         self.factory.loop.stop()
 
     def onMessage(self, payload, isBinary):
@@ -49,9 +49,8 @@ class WSClient(WebSocketClientProtocol):
             self.factory.serverInfo = event
             self.factory.gotServerInfo.set()
         else:
-            if self.factory.eventHandler is None:
-                return
-            self.factory.eventHandler(event)
+            if self.factory.eventHandler is not None:
+                self.factory.eventHandler(event)
 
 
 class WSClientFactory(WebSocketClientFactory):
@@ -64,7 +63,7 @@ class WSClientFactory(WebSocketClientFactory):
         self.protocol = WSClient
         self.connected = connected
         self.gotServerInfo = got_info
-        self.clients = []
+        self.client = None
         self.eventHandler = None
         self.serverInfo = None
 
@@ -134,35 +133,49 @@ class Client(object):
 
 
 @asyncio.coroutine
-def tryConnect(loop, factory, host, port, callback):
+def tryConnect(loop, factory, host, port, callback, timeout=1):
+    ''' INTERNAL COROUTINE. Tries to connect to a marche daemon.
+    :param loop: The BaseEventLoop to use.
+    :param factory: Instance of a WebSocketClientFactory (or subclass).
+    :param host: The host to connect to.
+    :param port: int from 0-65535.
+    :param callback: A function which takes a string. Is called when connecting successfully. Argument is the hostname.
+    :param timeout: How long to wait in seconds for each host until connecting is cancelled. Default 1s.
+    :return: The WebSocketClientProtocol (or subclass) instance, provided by the factory, is returned.
+    '''
     try:
-        print("Connecting to %r..." % host)
         future = loop.create_connection(factory, host, port)
-        transport, protocol = yield from asyncio.wait_for(future, timeout=1)
+        transport, protocol = yield from asyncio.wait_for(future, timeout=timeout)
         callback(host)
-        print("Found %r" % host)
-        return transport
+        return protocol
     except Exception:
         pass
 
 
-def testConnection(hosts, port, callback):
-    print("Called testConnection")
+def testConnections(hosts, port=12132, callback=print):
+    ''' Test whether hosts run the marche daemon.
+    :param hosts: List of hostnames/IP addresses.
+    :param port: The port to use.
+    :param callback: The function which is passed to tryConnect.
+    :return: None
+    '''
+    # We use a fresh event loop so this function can be called from any thread.
     loop = asyncio.new_event_loop()
     asyncio.set_event_loop(loop)
     coros = []
 
-    for host in sorted(hosts):
+    for host in hosts:
         host = str(host)
         addr = 'ws://%s:%d' % (host, port)
         factory = WSClientFactory(addr, threading.Event(), threading.Event())
         coros.append(tryConnect(loop, factory, host, port, callback))
 
-    print("Done iterating")
-
     future = asyncio.gather(*coros)
-    print(future)
-    task = asyncio.ensure_future(future, loop=loop)
-    print("After ensure")
-    loop.run_until_complete(task)
+    loop.run_until_complete(future)
     loop.stop()
+    connections = future.result()
+    for connection in connections:
+        if connection is not None:
+            # See https://www.iana.org/assignments/websocket/websocket.xml#close-code-number-rules for codes.
+            # 1000 means normal closure.
+            connection.sendClose(code=1000, reason="Server discovery succeeded.")
