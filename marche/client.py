@@ -31,7 +31,8 @@ from autobahn.asyncio.websocket import asyncio, WebSocketClientProtocol, \
 
 from marche.protocol import Event, ConnectedEvent, RequestServiceListCommand, \
     RequestServiceStatusCommand, RequestControlOutputCommand, StartCommand, \
-    StopCommand, RestartCommand
+    StopCommand, RestartCommand, AuthenticateCommand, TriggerReloadCommand, \
+    ScanNetworkCommand
 
 
 class WSClient(WebSocketClientProtocol):
@@ -118,10 +119,22 @@ class Client(object):
     def restartService(self, service, instance):
         self.sendServiceCommand(RestartCommand, service, instance)
 
-    def close(self):
+    def authenticate(self, user, passwd):
+        self.send(AuthenticateCommand(user, passwd))
+
+    def reload(self):
+        self.send(TriggerReloadCommand())
+
+    def scanNetwork(self):
+        self.send(ScanNetworkCommand())
+
+    def close(self, reason=None):
         if self.factory.client is None:
             return
-        self.factory.client.sendClose()
+        if reason is not None:
+            self.factory.client.sendClose(code=1000, reason=reason)
+        else:
+            self.factory.client.sendClose()
 
     def send(self, cmd):
         if self.factory.client is None:

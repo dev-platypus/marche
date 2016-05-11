@@ -60,7 +60,7 @@ class Console(cmd.Cmd):
         connectedEvent = self.client.getServerInfo()
         self.write = self.stdout.write
         self.printEvent(connectedEvent)
-        self.client.send(proto.RequestServiceListCommand())
+        self.client.requestServiceList()
 
     def _svcname(self, svc, inst):
         return '%s.%s' % (svc, inst) if inst else svc
@@ -102,7 +102,7 @@ class Console(cmd.Cmd):
             if event.success:
                 self.write('\r%s\n' % colorize('green',
                                                'Authentication succeeded.'))
-                self.client.send(proto.RequestServiceListCommand())
+                self.client.requestServiceList()
             else:
                 self.write('\r%s\n' % colorize('red',
                                                'Authentication failed.'))
@@ -125,7 +125,7 @@ class Console(cmd.Cmd):
             self.write('%s: %s\n' % (colorize('red', 'Error'), err))
 
     def do_EOF(self, arg):
-        self.client.close()
+        self.client.close("User disconnected.")
         return True
     do_q = do_quit = do_EOF
 
@@ -139,34 +139,32 @@ class Console(cmd.Cmd):
             passwd = getpass.getpass()
         else:
             passwd = args[1]
-        self.client.send(proto.AuthenticateCommand(user, passwd))
+        self.client.authenticate(user, passwd)
 
     def do_reload(self, arg):
-        self.client.send(proto.TriggerReloadCommand())
+        self.client.reload()
 
     def do_scan(self, arg):
-        self.client.send(proto.ScanNetworkCommand())
+        self.client.scanNetwork()
 
     def do_list(self, arg):
-        self.client.send(proto.RequestServiceListCommand())
+        self.client.requestServiceList()
     do_l = do_list
 
     def do_status(self, arg):
-        self.client.send(
-            proto.RequestServiceStatusCommand(*self._svcinst(arg)))
+        self.client.requestStatus(*self._svcinst(arg))
 
     def do_output(self, arg):
-        self.client.send(
-            proto.RequestControlOutputCommand(*self._svcinst(arg)))
+        self.client.requestOutput(*self._svcinst(arg))
 
     def do_start(self, arg):
-        self.client.send(proto.StartCommand(*self._svcinst(arg)))
+        self.client.startService(*self._svcinst(arg))
 
     def do_stop(self, arg):
-        self.client.send(proto.StopCommand(*self._svcinst(arg)))
+        self.client.stopService(*self._svcinst(arg))
 
     def do_restart(self, arg):
-        self.client.send(proto.RestartCommand(*self._svcinst(arg)))
+        self.client.restartService(*self._svcinst(arg))
 
 
 def main():  # pragma: no cover
