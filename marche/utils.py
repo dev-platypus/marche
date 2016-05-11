@@ -35,6 +35,9 @@ import ipaddress
 import psutil
 import select
 import collections
+import ctypes
+import platform
+from ctypes.util import find_library
 from os import path
 from threading import Thread
 from subprocess import Popen, PIPE
@@ -313,3 +316,24 @@ def determine_subnet():
                 return str(ipaddress.ip_network(u'%s/%s' %
                                                 (ip, addr.netmask), False))
     return None
+
+
+def load_readline():
+    """Try to load the GNU readline library."""
+    if platform.system() == 'Darwin':
+        try:
+            # Maybe GNU readline is installed
+            librl = ctypes.cdll.LoadLibrary(
+                "/usr/local/opt/readline/lib/libreadline.dylib")
+            return librl
+        except Exception:
+            # editline wrapper seems to not work so seamlessly, so assume there
+            # is no readline
+            return None
+    else:
+        # not tested on Windows
+        try:
+            librl = ctypes.cdll[find_library('readline')]
+            return librl
+        except Exception:
+            return None

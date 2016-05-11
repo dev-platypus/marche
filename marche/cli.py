@@ -28,7 +28,6 @@ from __future__ import print_function
 
 import cmd
 import sys
-import ctypes
 import getpass
 import logging
 
@@ -37,13 +36,7 @@ from marche.client import Client
 from marche.jobs import STATE_STR, DEAD, RUNNING, WARNING, STARTING, \
     STOPPING, INITIALIZING, NOT_RUNNING, NOT_AVAILABLE
 from marche.colors import colorize
-from marche.utils import normalize_addr
-
-try:  # pragma: no cover
-    librl = ctypes.cdll[ctypes.util.find_library('readline')]
-except Exception:  # pragma: no cover
-    librl = None
-
+from marche.utils import normalize_addr, load_readline
 
 class Console(cmd.Cmd):
     prompt = colorize('bold', 'marche->') + ' '
@@ -60,6 +53,7 @@ class Console(cmd.Cmd):
 
     def __init__(self, args, stdout=None):
         cmd.Cmd.__init__(self, stdout=stdout)
+        self.librl = load_readline()
         host, port = normalize_addr(args[0] if args else '127.0.0.1', 12132,
                                     lookup_host=False)
         self.client = Client(host, int(port), self.printEvent, logging)
@@ -116,10 +110,10 @@ class Console(cmd.Cmd):
             self.write('\rFound host: %s\n' % colorize('bold', event.host))
         else:  # pragma: no cover
             self.write('\r\n')
-        if librl:  # pragma: no cover
+        if self.librl:  # pragma: no cover
             # Display a new prompt right now (unfortunately not exported by
             # the readline module.)
-            librl.rl_forced_update_display()
+            self.librl.rl_forced_update_display()
 
     def emptyline(self):
         pass
