@@ -34,6 +34,7 @@ from marche.guing.util import loadUi
 from marche.utils import determine_subnet
 from marche.guing.model import Model
 from marche.guing.treeitems import HostTreeItem, JobTreeItem
+from marche.guing.dialogs import AuthDialog
 
 
 class MainWindow(QMainWindow):
@@ -46,6 +47,7 @@ class MainWindow(QMainWindow):
         self.splitter.setStretchFactor(1, 4)
 
         self._displayedHosts = []
+        self._credentials = {}  # host : (user, pw)
 
         self.srvTree.currentItemChanged.connect(self.onSrvTreeItemChanged)
 
@@ -53,6 +55,7 @@ class MainWindow(QMainWindow):
         self._model.newHost.connect(self.addHostItem)
         self._model.newServiceList.connect(self.updatejobTree)
         self._model.newState.connect(self.updateStatus)
+        self._model.errorOccured.connect(self.displayError)
 
         self.actionAddHost.triggered.connect(self.addHost)
         self.actionAddSubnet.triggered.connect(self.addSubnet)
@@ -170,6 +173,10 @@ class MainWindow(QMainWindow):
             self._displayedHosts.append(newItem.host)
             self._displaySingleHost(newItem.host, newItem.host.serviceList)
 
+    def displayError(self, host, service, instance, code, desc):
+        QMessageBox.critical(self, '%s: %s/%s' % (host.hostname, service, instance),
+                                     'Error %s: %s' % (code, desc))
+
     def updatejobTree(self, host, serviceList):
         if self._displayedHosts == [host]:
             self._displaySingleHost(host, serviceList)
@@ -188,9 +195,22 @@ class MainWindow(QMainWindow):
 
             instanceItem.updateStatus(state, status)
 
+    def _isHostAuthenticated(self, host):
+        return host in self._credentials
+
+    def _authenticate(self, host):
+        dlg = AuthDialog(self, 'Authentication: %s' % host)
+        if dlg.exec_():
+            self._model.authenticate(host, dlg.user, dlg.passwd)
+            if dlg.save_creds:
+                self._credentials[host] = (dlg.user, dlg.passwd)
+
     def _displaySingleHost(self, host, serviceList):
         host = host.ip
         self.jobTree.clear()
+
+        if not self._isHostAuthenticated(host):
+            self._authenticate(host)
 
         for service, serviceInfo in serviceList.items():
             instances = serviceInfo['instances']

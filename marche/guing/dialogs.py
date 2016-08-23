@@ -1,7 +1,5 @@
-#!/usr/bin/env python3
 #  -*- coding: utf-8 -*-
 # *****************************************************************************
-# Marche - A server control daemon
 # Copyright (c) 2015 by the authors, see LICENSE
 #
 # This program is free software; you can redistribute it and/or modify it under
@@ -19,32 +17,37 @@
 # 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 #
 # Module authors:
-#   Georg Brandl <g.brandl@fz-juelich.de>
-#   Alexander Lenz <alexander.lenz@frm2.tum.de>
+#   Alexander Lenz <alenz@dev-platypus.org>
 #
 # *****************************************************************************
 
-import sys
-from os import path
+from PyQt5.QtCore import Qt
+from PyQt5.QtGui import QIcon
+from PyQt5.QtWidgets import QMainWindow, QTreeWidgetItem, QInputDialog, \
+    QWidget, QHeaderView, QMessageBox, QApplication, QDialog, QDialogButtonBox
 
-from PyQt5.QtWidgets import QApplication
-
-# Add import path for inplace usage
-sys.path.insert(0, path.abspath(path.join(path.dirname(__file__), '..')))
-
-from marche.guing.mainwindow import MainWindow
-
-def main(argv=None):
-    if argv is None:
-        argv = sys.argv
-
-    app = QApplication(argv)
-
-    win = MainWindow()
-    win.show()
-
-    return app.exec_()
+import marche.guing.res  # noqa, pylint: disable=unused-import
+from marche.guing.util import loadUi
 
 
-if __name__ == '__main__':
-    sys.exit(main(sys.argv))
+class AuthDialog(QDialog):
+    def __init__(self, parent, title):
+        QDialog.__init__(self, parent)
+        loadUi(self, 'authdlg.ui')
+        self.buttonBox.button(QDialogButtonBox.Ok).setDefault(True)
+        self.nameLbl.setText(title)
+        self.setWindowTitle(title)
+        self.passwdLineEdit.setFocus()
+
+    @property
+    def user(self):
+        return str(self.userLineEdit.text()).strip()
+
+    @property
+    def passwd(self):
+        return str(self.passwdLineEdit.text()).strip()
+
+    @property
+    def save_creds(self):
+        return self.saveBox.isChecked()
+

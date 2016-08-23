@@ -25,11 +25,13 @@ import time
 import socket
 import ipaddress
 import logging
+from collections import OrderedDict
 
 from PyQt5.QtCore import QThread, pyqtSignal, QObject
 
 from marche.protocol import ServiceListEvent, StatusEvent, ErrorEvent, \
-    ConffileEvent, LogfileEvent, ControlOutputEvent, RequestServiceListCommand
+    ConffileEvent, LogfileEvent, ControlOutputEvent, RequestServiceListCommand, \
+    AuthEvent
 from marche.client import Client, testConnections
 
 
@@ -40,6 +42,7 @@ class Host(QObject):
     conffilesReceived = pyqtSignal(object, str, str, dict)  # self, service, instance, files
     logfilesReceived = pyqtSignal(object, str, str, dict)  # self, service, instance, files
     ctrlOutputReceived = pyqtSignal(object, str, str, list)  # self, service, instance, lines
+    authenticated = pyqtSignal(object, bool)  # self, success
 
     def __init__(self, address, port, parent=None):
         QObject.__init__(self, parent)
@@ -53,7 +56,8 @@ class Host(QObject):
 
         # new lookup for fqdn
         self._hostname, _, _ = socket.gethostbyaddr(str(self._address))
-        self._serviceList = {}
+        self._serviceList = OrderedDict()
+        self._authenticated = False
         self._client = Client(str(self._address), port, self._eventHandler, logging)
         self._client.send(RequestServiceListCommand())
 
@@ -91,13 +95,20 @@ class Host(QObject):
     def restartService(self, service, instance):
         self._client.restartService(service, instance)
 
+    def authenticate(self, user, passwd):
+        self._client.authenticate(user, passwd)
+
     @property
     def serverInfo(self):
         return self._client.getServerInfo()
 
+    @property
+    def isAuthenticated(self):
+        return self._authenticated
+
     def _eventHandler(self, ev):
         if isinstance(ev, ServiceListEvent):
-            self._serviceList = ev.services
+            self._serviceList = OrderedDict(ev.services)
             self.newServiceList.emit(self, ev.services)
         elif isinstance(ev, StatusEvent):
             if self._serviceList:
@@ -105,13 +116,16 @@ class Host(QObject):
                 self._serviceList[ev.service]['instances'][ev.instance]['ext_status'] = ev.ext_status
             self.newState.emit(self, ev.service, ev.instance, ev.state, ev.ext_status)
         elif isinstance(ev, ErrorEvent):
-            self.errorOccured.emit(self, ev.service, ev.instance, ev.code, ev.string)
+            self.errorOccured.emit(self, ev.service, ev.instance, ev.code, ev.desc)
         elif isinstance(ev, ConffileEvent):
             self.conffilesReceived.emit(self, ev.service, ev.instance, ev.files)
         elif isinstance(ev, LogfileEvent):
             self.logfilesReceived.emit(self, ev.service, ev.instance, ev.files)
         elif isinstance(ev, ControlOutputEvent):
             self.ctrlOutputReceived.emit(self, ev.service, ev.instance, ev.content)
+        elif isinstance(ev, AuthEvent):
+            self._authenticated = ev.success
+            self.authenticated.emit(self, ev.success)
 
 
 class Subnet(QThread):
@@ -125,6 +139,10 @@ class Subnet(QThread):
     @property
     def address(self):
         return self._net.network_address
+
+    @property
+    def netid(self):
+        return self._net.with_prefixlen
 
     def triggerScan(self):
         self.start()
@@ -150,6 +168,7 @@ class Model(QObject):
                                   dict)  # host, service, instance, files
     ctrlOutputReceived = pyqtSignal(object, str, str,
                                     list)  # host, service, instance, lines
+    authenticated = pyqtSignal(object, bool)  # host, success
 
     def __init__(self, parent=None):
         QObject.__init__(self, parent)
@@ -171,12 +190,13 @@ class Model(QObject):
         host.conffilesReceived.connect(self.conffilesReceived)
         host.logfilesReceived.connect(self.logfilesReceived)
         host.ctrlOutputReceived.connect(self.ctrlOutputReceived)
+        host.authenticated.connect(self.authenticated)
 
         self.newHost.emit(host)
 
     def scanSubnet(self, subnetid):
         if subnetid in self._subnetCache:
-            self._subnetCache
+            return #self._subnetCache
 
         self._subnetCache[subnetid] = Subnet(subnetid)
         self._subnetCache[subnetid].hostFound.connect(self.addHost)
@@ -192,10 +212,10 @@ class Model(QObject):
     def restartService(self, hostadr, service, instance):
         self._hosts[hostadr].restartService(service, instance)
 
+    def authenticate(self, hostadr, user, passwd):
+        self._hosts[hostadr].authenticate(user, passwd)
+
     ## slots ##
     def subnetScanFinished(self):
-        subnetid = self.sender().address
-        try:
-            del self._subnetCache[subnetid]
-        except KeyError:
-            pass
+        subnetid = str(self.sender().netid)
+        del self._subnetCache[subnetid]
